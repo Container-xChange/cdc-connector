@@ -1,0 +1,30 @@
+LOAD DATABASE
+    FROM mysql://${LIVE_USER}:${LIVE_PASS}@${LIVE_HOST}:${LIVE_PORT}/${LIVE_DB}
+    INTO postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}
+
+WITH include drop, create tables, create indexes, reset sequences,
+     workers = 8, concurrency = 1,
+     multiple readers per thread, rows per range = 10000
+
+INCLUDING ONLY TABLE NAMES MATCHING ~'T_CARRIER'
+-- INCLUDING ONLY TABLE NAMES MATCHING ~'^[T]_|^pipedrive_id_lookup$'
+
+SET PostgreSQL PARAMETERS
+    maintenance_work_mem to '128MB',
+    work_mem to '12MB'
+
+SET MySQL PARAMETERS
+    net_read_timeout  = '600',
+    net_write_timeout = '600'
+
+CAST type bigint when (= precision 20) to bigint drop typemod,
+     type date drop not null drop default using zero-dates-to-null,
+     type datetime to timestamp drop not null drop default using zero-dates-to-null,
+     type timestamp to timestamptz drop not null drop default using zero-dates-to-null
+
+BEFORE LOAD DO
+    $$ DROP SCHEMA IF EXISTS xchangelive CASCADE; $$,
+    $$ CREATE SCHEMA xchangelive; $$
+
+AFTER LOAD DO
+    $$ ALTER SCHEMA xchangelive OWNER TO ${PG_USER}; $$;

@@ -1,0 +1,57 @@
+{
+  "name": "mariadb-live-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "${LIVE_HOST}",
+    "database.port": "${LIVE_PORT}",
+    "database.user": "${LIVE_USER}",
+    "database.password": "${LIVE_PASS}",
+    "database.server.id": "${LIVE_SERVER_ID}",
+
+    "topic.prefix": "xchangelive",
+    "database.include.list": "xchangelive",
+
+    "table.include.list": "${LIVE_TABLE_ALLOWLIST}",
+
+    "snapshot.mode": "schema_only",
+    "snapshot.locking.mode": "none",
+
+    "schema.history.internal.kafka.bootstrap.servers": "redpanda:9092",
+    "schema.history.internal.kafka.topic": "xchangelive.schema-history",
+    "schema.history.internal.store.only.captured.tables.ddl": "true",
+    "schema.history.internal.skip.unparseable.ddl": "true",
+
+    "include.schema.changes": "true",
+    "include.schema.comments": "false",
+
+    "inconsistent.schema.handling.mode": "warn",
+
+    "decimal.handling.mode": "precise",
+    "bigint.unsigned.handling.mode": "long",
+    "time.precision.mode": "adaptive_time_microseconds",
+
+    "tombstones.on.delete": "true",
+
+    "binlog.buffer.size": "8192",
+
+    "database.connectionTimeZone": "UTC",
+
+    "heartbeat.interval.ms": "30000",
+    "heartbeat.topics.prefix": "__debezium-heartbeat",
+
+    "event.processing.failure.handling.mode": "warn",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.add.fields": "op,source.ts_ms,source.db,source.table"
+  }
+}
