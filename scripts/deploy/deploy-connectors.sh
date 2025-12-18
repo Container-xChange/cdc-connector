@@ -9,10 +9,12 @@ DEBEZIUM_URL="${DEBEZIUM_URL:-http://localhost:8083}"
 echo "🔌 Deploying Debezium Connectors..."
 echo "======================================"
 
-# Load environment variables
-if [ -f "$PROJECT_ROOT/env/.env" ]; then
+# Load environment variables (local development only)
+# In production, environment variables should already be exported
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    echo "Loading environment variables from .env (local development)..."
     set -a
-    source "$PROJECT_ROOT/env/.env"
+    source "$PROJECT_ROOT/.env"
     set +a
 fi
 

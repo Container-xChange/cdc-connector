@@ -18,10 +18,18 @@
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",
 
-    "schema.history.internal.kafka.bootstrap.servers": "redpanda:9092",
+    "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
     "schema.history.internal.kafka.topic": "xchange_finance.schema-history",
     "schema.history.internal.store.only.captured.tables.ddl": "true",
     "schema.history.internal.skip.unparseable.ddl": "true",
+    "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "schema.history.internal.producer.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "schema.history.internal.producer.sasl.jaas.config": "org.apache.kafka.common.security.${KAFKA_LOGIN_MODULE} required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "schema.history.internal.producer.ssl.endpoint.identification.algorithm": "https",
+    "schema.history.internal.consumer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "schema.history.internal.consumer.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "schema.history.internal.consumer.sasl.jaas.config": "org.apache.kafka.common.security.${KAFKA_LOGIN_MODULE} required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "schema.history.internal.consumer.ssl.endpoint.identification.algorithm": "https",
 
     "include.schema.changes": "true",
     "include.schema.comments": "false",
@@ -42,6 +50,15 @@
     "heartbeat.topics.prefix": "__debezium-heartbeat",
 
     "event.processing.failure.handling.mode": "warn",
+
+    "topic.creation.enable": "true",
+    "topic.creation.default.replication.factor": "3",
+    "topic.creation.default.partitions": "1",
+    "topic.creation.default.cleanup.policy": "compact,delete",
+    "topic.creation.default.compression.type": "lz4",
+    "topic.creation.default.retention.ms": "15552000000",
+    "topic.creation.default.delete.retention.ms": "86400000",
+    "topic.creation.default.min.insync.replicas": "2",
 
     "key.converter": "org.apache.kafka.connect.json.JsonConverter",
     "key.converter.schemas.enable": "true",

@@ -6,8 +6,7 @@ WITH include drop, create tables, create indexes, reset sequences,
      workers = 8, concurrency = 1,
      multiple readers per thread, rows per range = 10000
 
-INCLUDING ONLY TABLE NAMES MATCHING ~'T_CARRIER$'
--- INCLUDING ONLY TABLE NAMES MATCHING ~'^[T]_|^pipedrive_id_lookup$'
+INCLUDING ONLY TABLE NAMES MATCHING ~'^T_'
 
 SET PostgreSQL PARAMETERS
     maintenance_work_mem to '128MB',
