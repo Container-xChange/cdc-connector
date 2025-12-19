@@ -2,13 +2,13 @@
   "name": "postgres-sink-connector",
   "config": {
     "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
-    "tasks.max": "3",
+    "tasks.max": "1",
 
-    "connection.url": "${SINK_DB_URL}",
+    "connection.url": "${SINK_DB_URL}&currentSchema=xchange_trading",
     "connection.username": "${SINK_DB_USER}",
     "connection.password": "${SINK_DB_PASSWORD}",
 
-    "topics.regex": "(xchange_trading|xchange_finance|xchangelive)\\.(xchange_trading|xchange_finance|xchangelive)\\..*",
+    "topics": "xchange_trading.xchange_trading.T_ABSTRACT_OFFER",
 
     "insert.mode": "upsert",
     "primary.key.mode": "record_key",
@@ -16,15 +16,18 @@
 
     "schema.evolution": "basic",
     "quote.identifiers": "false",
-    "hibernate.dialect": "org.hibernate.dialect.PostgreSQLDialect",
-    "table.name.format": "${topic}",
 
-    "transforms": "route,SchemaRouter",
-    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
-    "transforms.route.regex": "([^.]+)\\.([^.]+)\\.(.*)",
-    "transforms.route.replacement": "$3",
-    "transforms.SchemaRouter.type": "org.apache.kafka.connect.transforms.RegexRouter",
-    "transforms.SchemaRouter.regex": ".*",
-    "transforms.SchemaRouter.replacement": "$1"
+    "table.name.format": "t_abstract_offer",
+
+    "consumer.override.auto.offset.reset": "latest",
+    "consumer.override.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "consumer.override.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "consumer.override.sasl.jaas.config": "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "consumer.override.ssl.endpoint.identification.algorithm": "https",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true"
   }
 }

@@ -1,5 +1,21 @@
 # CDC Pipeline Project - CRITICAL INSTRUCTIONS
 
+## 🚨 CDC PIPELINE ARCHITECTURE - READ THIS FIRST
+
+**DATA FLOW:**
+1. **pgloader** has ALREADY loaded initial snapshots from MariaDB → Postgres (user runs `make migrate`)
+2. **Debezium source connectors** capture ONLY changes after setup (snapshot.mode: "schema_only")
+3. **Debezium sink connectors** write changes from Kafka → Postgres (upsert mode)
+
+**CRITICAL RULES:**
+- **NEVER change snapshot.mode from "schema_only"** - Initial data is loaded via pgloader
+- **NEVER suggest running `make migrate`** - Only user can run this
+- Tables already exist in Postgres with primary keys - CDC syncs changes only
+- Source connectors read binlog AFTER connector registration time
+- To test CDC: user must make NEW updates in MariaDB AFTER connectors are registered
+
+---
+
 ## 🚨 BEFORE DOING ANYTHING - MANDATORY CHECKS
 
 **ALWAYS CHECK EXISTING FILES FIRST:**

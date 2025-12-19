@@ -2,11 +2,11 @@ LOAD DATABASE
     FROM mysql://${LIVE_USER}:${LIVE_PASS}@${LIVE_HOST}:${LIVE_PORT}/${LIVE_DB}
     INTO postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}
 
-WITH include drop, create tables, create indexes, reset sequences,
+WITH include drop, create tables, reset sequences,
      workers = 8, concurrency = 1,
      multiple readers per thread, rows per range = 10000
 
-INCLUDING ONLY TABLE NAMES MATCHING ~'^T_'
+INCLUDING ONLY TABLE NAMES MATCHING ~'T_CARRIER$'
 
 SET PostgreSQL PARAMETERS
     maintenance_work_mem to '128MB',
@@ -16,10 +16,37 @@ SET MySQL PARAMETERS
     net_read_timeout  = '600',
     net_write_timeout = '600'
 
-CAST type bigint when (= precision 20) to bigint drop typemod,
+CAST
+     -- Let pgloader handle tinyint(1) → boolean automatically (built-in default)
+     -- Only convert tinyint(2+) to smallint
+     type tinyint when (> 1 precision) to smallint drop typemod drop default,
+
+     -- Integers: drop display width, keep precision
+     type smallint to smallint drop typemod drop default,
+     type int to integer drop typemod drop default,
+     type bigint to bigint drop typemod drop default,
+
+     -- Decimals: keep precision for financial accuracy
+     type decimal to numeric keep typemod drop default,
+
+     -- Date/Time: handle zero dates, preserve precision
      type date drop not null drop default using zero-dates-to-null,
      type datetime to timestamp drop not null drop default using zero-dates-to-null,
-     type timestamp to timestamptz drop not null drop default using zero-dates-to-null
+     type datetime to timestamp keep typemod drop not null drop default using zero-dates-to-null,
+     type timestamp to timestamptz drop not null drop default using zero-dates-to-null,
+     type time to time drop typemod drop default,
+
+     -- Strings: keep varchar lengths, convert TEXT variants
+     type varchar to varchar keep typemod,
+     type char to char keep typemod,
+     type mediumtext to text drop typemod,
+     type longtext to text drop typemod,
+
+     -- Binary types
+     type binary to bytea drop typemod,
+     type blob to bytea drop typemod,
+     type mediumblob to bytea drop typemod,
+     type longblob to bytea drop typemod
 
 BEFORE LOAD DO
     $$ DROP SCHEMA IF EXISTS xchangelive CASCADE; $$,

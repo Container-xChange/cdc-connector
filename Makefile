@@ -17,6 +17,7 @@ help:
 	@echo ""
 	@echo "Migration:"
 	@echo "  make migrate            - Run pgloader snapshot dump (all databases)"
+	@echo "  make add-indexes        - Add indexes and foreign keys after migration"
 	@echo ""
 	@echo "Connectors:"
 	@echo "  make register-trading   - Register xchange_trading source"
@@ -35,13 +36,37 @@ help:
 	@echo "  make connector-status C=<connector-name> - Get connector status"
 
 migrate:
-	@echo "🔄 Building pgloader image..."
-	docker build -t pgloader-cdc -f bootstrap/Dockerfile bootstrap/
+	@echo "🗄️  Installing pgloader via Homebrew if not present..."
+	@which pgloader > /dev/null || brew install pgloader
 	@echo ""
-	@echo "🗄️  Running pgloader migration (load-all.sh)..."
-	docker run --rm --env-file .env pgloader-cdc
+	@echo "🗄️  Running pgloader migration (all databases)..."
+	cd bootstrap/pgloader && bash load-all.sh
 	@echo ""
-	@echo "✅ Migration completed!"
+	@echo "📊 Adding indexes and foreign keys..."
+	@echo ""
+	@echo "  → Trading indexes/FKs..."
+	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/trading-indexes-fks.sql > /dev/null 2>&1
+	@echo "  → Finance indexes/FKs..."
+	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/finance-indexes-fks.sql > /dev/null 2>&1
+	@echo "  → Live indexes/FKs..."
+	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/live-indexes-fks.sql > /dev/null 2>&1
+	@echo ""
+	@echo "✅ Migration completed with indexes!"
+
+add-indexes:
+	@echo ""
+	@echo "📊 Adding indexes and foreign keys..."
+	@echo ""
+	@echo "Adding Trading indexes/FKs..."
+	PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/trading-indexes-fks.sql
+	@echo ""
+	@echo "Adding Finance indexes/FKs..."
+	PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/finance-indexes-fks.sql
+	@echo ""
+	@echo "Adding Live indexes/FKs..."
+	PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/live-indexes-fks.sql
+	@echo ""
+	@echo "✅ All indexes and foreign keys created successfully!"
 
 check-health:
 	@echo "Checking Debezium health..."
@@ -121,4 +146,14 @@ connector-status:
 		exit 1; \
 	fi
 	@curl -s $$DEBEZIUM_URL/connectors/$(C)/status | jq .
+
+restart-connector:
+	@if [ -z "$(C)" ]; then \
+		echo "Usage: make restart-connector C=<connector-name>"; \
+		exit 1; \
+	fi
+	@echo "Restarting connector $(C)..."
+	@curl -s -X POST $$DEBEZIUM_URL/connectors/$(C)/restart
+	@echo ""
+	@echo "✓ Connector restarted"
 

@@ -15,7 +15,7 @@
 
     "table.include.list": "${LIVE_TABLE_ALLOWLIST}",
 
-    "snapshot.mode": "initial",
+    "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
@@ -30,7 +30,7 @@
     "schema.history.internal.consumer.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
     "schema.history.internal.consumer.sasl.jaas.config": "org.apache.kafka.common.security.${KAFKA_LOGIN_MODULE} required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
     "schema.history.internal.consumer.ssl.endpoint.identification.algorithm": "https",
-
+    "database.history.skip.unparseable.ddl": "true",
     "include.schema.changes": "true",
     "include.schema.comments": "false",
 
@@ -39,6 +39,9 @@
     "decimal.handling.mode": "precise",
     "bigint.unsigned.handling.mode": "long",
     "time.precision.mode": "adaptive_time_microseconds",
+
+    "converters": "boolean",
+    "boolean.type": "io.debezium.connector.mysql.converters.TinyIntOneToBooleanConverter",
 
     "tombstones.on.delete": "true",
 

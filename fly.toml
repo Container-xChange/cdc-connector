@@ -26,6 +26,6 @@ primary_region = 'fra'
     path = "/"
 
 [[vm]]
-  memory = '2gb'
+  memory = '8gb'
   cpus = 2
   memory_mb = 2048
