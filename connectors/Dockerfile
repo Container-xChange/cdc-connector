@@ -28,10 +28,22 @@ COPY connectors/profile-286.ovpn /kafka/profile-286.ovpn
 COPY connectors/pass-prod.txt /pass-prod.txt
 COPY connectors/entrypoint-prod.sh /entrypoint-prod.sh
 
+# Copy connector generation files
+COPY connectors/config.json /kafka/connectors/config.json
+COPY connectors/sources/mariadb/source.template.json /kafka/connectors/sources/mariadb/source.template.json
+COPY connectors/sinks/postgres/sink.template.json /kafka/connectors/sinks/postgres/sink.template.json
+COPY scripts/generate-connectors.sh /kafka/scripts/generate-connectors.sh
+COPY scripts/deploy /kafka/scripts/deploy
+
+# Generate connector configurations at build time
+RUN cd /kafka && bash scripts/generate-connectors.sh
+
 # Set permissions
 RUN chmod 600 /pass-prod.txt && \
     chmod 644 /kafka/profile-286.ovpn && \
-    chmod +x /entrypoint-prod.sh
+    chmod +x /entrypoint-prod.sh && \
+    chmod +x /kafka/scripts/generate-connectors.sh && \
+    chmod +x /kafka/scripts/deploy/deploy-connectors.sh
 
 # Stay as root (OpenVPN requires root privileges)
 # The original Debezium entrypoint will handle user switching if needed

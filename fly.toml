@@ -8,7 +8,6 @@ primary_region = 'fra'
 
 [build]
   dockerfile = 'connectors/Dockerfile'
-  build-context = 'connectors'
 
 [http_service]
   internal_port = 8083

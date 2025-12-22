@@ -2,12 +2,13 @@ LOAD DATABASE
     FROM mysql://${FINANCE_USER}:${FINANCE_PASS}@${FINANCE_HOST}:${FINANCE_PORT}/${FINANCE_DB}
     INTO postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}
 
-WITH include drop, create tables, reset sequences,
-     workers = 8, concurrency = 1,
-     multiple readers per thread, rows per range = 10000
+WITH include drop, create tables, create indexes, reset sequences,
+     workers = 16, concurrency = 4,
+     multiple readers per thread, rows per range = 50000, prefetch rows = 5000,
+     batch rows = 25000, batch size = 20MB
 
 INCLUDING ONLY TABLE NAMES MATCHING ~'T_INVOICE$'
--- INCLUDING ONLY TABLE NAMES MATCHING ~'^T_'
+--INCLUDING ONLY TABLE NAMES MATCHING ~'^T_'
 
 SET PostgreSQL PARAMETERS
     maintenance_work_mem to '128MB',
@@ -18,33 +19,42 @@ SET MySQL PARAMETERS
     net_write_timeout = '600'
 
 CAST
-     -- Let pgloader handle tinyint(1) → boolean automatically (built-in default)
-     -- Only convert tinyint(2+) to smallint
+     -- Booleans: tinyint(1) → boolean (Debezium converter handles this)
+     type tinyint when (= 1 precision) to boolean drop typemod using tinyint-to-boolean,
      type tinyint when (> 1 precision) to smallint drop typemod drop default,
 
-     -- Integers: drop display width, keep precision
+     -- Keep bit(1) as bit(1) for Debezium compatibility
+     type bit to bit keep typemod,
+
+     -- Enums: convert to varchar
+     type enum to varchar drop typemod,
+
+     -- Integers: drop display width
      type smallint to smallint drop typemod drop default,
      type int to integer drop typemod drop default,
      type bigint to bigint drop typemod drop default,
+     type int when unsigned to bigint drop typemod drop default,
 
-     -- Decimals: keep precision for financial accuracy
+     -- Decimals: CRITICAL for financial data
      type decimal to numeric keep typemod drop default,
 
-     -- Date/Time: handle zero dates, preserve precision
+     -- Date/Time: handle zero dates
      type date drop not null drop default using zero-dates-to-null,
      type datetime to timestamp drop not null drop default using zero-dates-to-null,
-     type datetime to timestamp keep typemod drop not null drop default using zero-dates-to-null,
      type timestamp to timestamptz drop not null drop default using zero-dates-to-null,
      type time to time drop typemod drop default,
 
-     -- Strings: keep varchar lengths, convert TEXT variants
+     -- Strings
      type varchar to varchar keep typemod,
-     type char to char keep typemod,
+     type char to varchar drop typemod,
+     type text to text drop typemod,
      type mediumtext to text drop typemod,
      type longtext to text drop typemod,
 
-     -- Binary types
+     -- Binary
      type binary to bytea drop typemod,
+     type varbinary to bytea drop typemod,
+     type blob to bytea drop typemod,
      type mediumblob to bytea drop typemod,
      type longblob to bytea drop typemod
 

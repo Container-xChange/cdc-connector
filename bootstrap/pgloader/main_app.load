@@ -3,11 +3,12 @@ LOAD DATABASE
     INTO postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}
 
 WITH include drop, create tables, create indexes, reset sequences,
-     workers = 8, concurrency = 1,
-     multiple readers per thread, rows per range = 10000
+     workers = 16, concurrency = 4,
+     multiple readers per thread, rows per range = 50000, prefetch rows = 5000,
+     batch rows = 25000, batch size = 20MB
 
 INCLUDING ONLY TABLE NAMES MATCHING ~'T_CARRIER$'
--- INCLUDING ONLY TABLE NAMES MATCHING ~'^[T]_|^pipedrive_id_lookup$'
+--INCLUDING ONLY TABLE NAMES MATCHING ~'^[T]_|^pipedrive_id_lookup$'
 
 SET PostgreSQL PARAMETERS
     maintenance_work_mem to '128MB',
@@ -17,10 +18,46 @@ SET MySQL PARAMETERS
     net_read_timeout  = '600',
     net_write_timeout = '600'
 
-CAST type bigint when (= precision 20) to bigint drop typemod,
+CAST
+     -- Booleans: tinyint(1) → boolean (Debezium converter handles this)
+     type tinyint when (= 1 precision) to boolean drop typemod using tinyint-to-boolean,
+     type tinyint when (> 1 precision) to smallint drop typemod drop default,
+
+     -- Keep bit(1) as bit(1) for Debezium compatibility
+     type bit to bit keep typemod,
+
+     -- UUIDs: binary(16) → uuid
+     type binary when (= 16 precision) to uuid drop typemod using byte-vector-to-uuid,
+     type binary to bytea drop typemod,
+
+     -- Integers: drop display width
+     type smallint to smallint drop typemod drop default,
+     type int to integer drop typemod drop default,
+     type bigint to bigint drop typemod drop default,
+     type int when unsigned to bigint drop typemod drop default,
+
+     -- Decimals
+     type decimal to numeric keep typemod drop default,
+     type double to double precision drop typemod drop default,
+
+     -- Date/Time: handle zero dates
      type date drop not null drop default using zero-dates-to-null,
      type datetime to timestamp drop not null drop default using zero-dates-to-null,
-     type timestamp to timestamptz drop not null drop default using zero-dates-to-null
+     type timestamp to timestamptz drop not null drop default using zero-dates-to-null,
+     type time to time drop typemod drop default,
+
+     -- Strings
+     type varchar to varchar keep typemod,
+     type char to varchar drop typemod,
+     type text to text drop typemod,
+     type mediumtext to text drop typemod,
+     type longtext to text drop typemod,
+
+     -- Binary
+     type varbinary to bytea drop typemod,
+     type blob to bytea drop typemod,
+     type mediumblob to bytea drop typemod,
+     type longblob to bytea drop typemod
 
 BEFORE LOAD DO
     $$ DROP SCHEMA IF EXISTS xchangelive CASCADE; $$,

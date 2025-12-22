@@ -277,7 +277,7 @@ make topics  # Should match: marketplace.marketplace.*
 
 ### Events Not Reaching Postgres
 ```bash
-# Check transform rules in postgres-sink.json
+# Check transform rules in postgres-trading.json
 # Ensure topic regex matches: marketplace\.(marketplace)\..*
 # Ensure table name routing is correct
 

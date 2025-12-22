@@ -17,23 +17,33 @@ help:
 	@echo ""
 	@echo "Migration:"
 	@echo "  make migrate            - Run pgloader snapshot dump (all databases)"
+	@echo "  make load-trading       - Run pgloader for Trading database only"
 	@echo "  make add-indexes        - Add indexes and foreign keys after migration"
 	@echo ""
 	@echo "Connectors:"
-	@echo "  make register-trading   - Register xchange_trading source"
-	@echo "  make register-finance   - Register xchange_finance source"
-	@echo "  make register-live      - Register xchangelive source"
-	@echo "  make register-sink      - Register Postgres sink"
-	@echo "  make register-all       - Register all connectors (uses deploy-connectors.sh)"
-	@echo "  make unregister-all     - Delete all connectors"
-	@echo "  make connectors         - List all connectors and their status"
-	@echo "  make check-health       - Check Debezium health"
+	@echo "  make generate-connectors    - Generate connector configs from templates"
+	@echo "  make register-trading       - Register Trading source + sink"
+	@echo "  make register-finance       - Register Finance source + sink"
+	@echo "  make register-live          - Register Live source + sink"
+	@echo "  make register-sources       - Register all source connectors only"
+	@echo "  make register-sink          - Register all sink connectors only"
+	@echo "  make register-all           - Register all connectors (uses deploy-connectors.sh)"
+	@echo "  make unregister-trading     - Delete Trading source + sink"
+	@echo "  make unregister-finance     - Delete Finance source + sink"
+	@echo "  make unregister-live        - Delete Live source + sink"
+	@echo "  make unregister-all         - Delete all connectors"
+	@echo "  make connectors             - List all connectors and their status"
+	@echo "  make check-health           - Check Debezium health"
 	@echo ""
 	@echo "Deployment:"
 	@echo "  make deploy             - Register all CDC connectors"
 	@echo ""
 	@echo "Debugging:"
 	@echo "  make connector-status C=<connector-name> - Get connector status"
+
+generate-connectors:
+	@echo "🔧 Generating connector configurations from templates..."
+	@bash scripts/generate-connectors.sh
 
 migrate:
 	@echo "🗄️  Installing pgloader via Homebrew if not present..."
@@ -52,6 +62,33 @@ migrate:
 	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/live-indexes-fks.sql > /dev/null 2>&1
 	@echo ""
 	@echo "✅ Migration completed with indexes!"
+
+load-trading:
+	@echo "🗄️  Installing pgloader via Homebrew if not present..."
+	@which pgloader > /dev/null || brew install pgloader
+	@echo ""
+	@echo "🗄️  Running pgloader migration (Trading database only)..."
+	cd bootstrap/pgloader && \
+	export PGSSLMODE=prefer && \
+	PROCESSED_FILE=trading.processed.load && \
+	sed -e "s|\$${TRADING_USER}|$$TRADING_USER|g" \
+	    -e "s|\$${TRADING_PASS}|$$TRADING_PASS|g" \
+	    -e "s|\$${TRADING_HOST}|$$TRADING_HOST|g" \
+	    -e "s|\$${TRADING_PORT}|$$TRADING_PORT|g" \
+	    -e "s|\$${TRADING_DB}|$$TRADING_DB|g" \
+	    -e "s|\$${PG_USER}|$$PG_USER|g" \
+	    -e "s|\$${PG_PASS}|$$PG_PASS|g" \
+	    -e "s|\$${PG_HOST}|$$PG_HOST|g" \
+	    -e "s|\$${PG_PORT}|$$PG_PORT|g" \
+	    -e "s|\$${PG_DB}|$$PG_DB|g" \
+	    trading.load > $$PROCESSED_FILE && \
+	pgloader --no-ssl-cert-verification --verbose $$PROCESSED_FILE && \
+	rm $$PROCESSED_FILE
+	@echo ""
+	@echo "📊 Adding Trading indexes and foreign keys..."
+	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/trading-indexes-fks.sql
+	@echo ""
+	@echo "✅ Trading migration completed with indexes!"
 
 add-indexes:
 	@echo ""
@@ -72,7 +109,7 @@ check-health:
 	@echo "Checking Debezium health..."
 	@curl -sf $$DEBEZIUM_URL/ > /dev/null && echo "✓ Debezium healthy" || echo "✗ Debezium unhealthy"
 
-register-trading:
+register-trading-source:
 	@echo "Registering xchange_trading source connector..."
 	@envsubst < connectors/sources/mariadb/trading.json | \
 	curl -X POST $$DEBEZIUM_URL/connectors \
@@ -81,16 +118,16 @@ register-trading:
 	@echo ""
 	@echo "✓ Trading source registered"
 
-register-finance:
+register-finance-source:
 	@echo "Registering xchange_finance source connector..."
-	@envsubst < connecto/sources/mariadb/finance.json | \
+	@envsubst < connectors/sources/mariadb/finance.json | \
 	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .
 	@echo ""
 	@echo "✓ Finance source registered"
 
-register-live:
+register-live-source:
 	@echo "Registering xchangelive source connector..."
 	@envsubst < connectors/sources/mariadb/live.json | \
 	curl -X POST $$DEBEZIUM_URL/connectors \
@@ -99,14 +136,52 @@ register-live:
 	@echo ""
 	@echo "✓ Live source registered"
 
-register-sink:
-	@echo "Registering Postgres sink connector..."
-	@envsubst < connectors/sinks/postgres/sink.json | \
+register-sink-trading:
+	@echo "Registering Postgres Trading sink connector..."
+	@envsubst < connectors/sinks/postgres/trading.json | \
 	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .
 	@echo ""
-	@echo "✓ Sink connector registered"
+	@echo "✓ Trading sink registered"
+
+register-sink-finance:
+	@echo "Registering Postgres Finance sink connector..."
+	@envsubst < connectors/sinks/postgres/finance.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Finance sink registered"
+
+register-sink-live:
+	@echo "Registering Postgres Live sink connector..."
+	@envsubst < connectors/sinks/postgres/live.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Live sink registered"
+
+register-trading: register-trading-source register-sink-trading
+	@echo ""
+	@echo "✓ Trading source and sink registered"
+
+register-finance: register-finance-source register-sink-finance
+	@echo ""
+	@echo "✓ Finance source and sink registered"
+
+register-live: register-live-source register-sink-live
+	@echo ""
+	@echo "✓ Live source and sink registered"
+
+register-sink: register-sink-trading register-sink-live
+	@echo ""
+	@echo "✓ All sink connectors registered"
+
+register-sources: register-trading-source register-finance-source register-live-source
+	@echo ""
+	@echo "✓ All source connectors registered"
 
 register-all:
 	@echo "🔌 Deploying all connectors..."
@@ -124,12 +199,33 @@ deploy:
 	@echo "🔍 Check status with: make connectors"
 	@echo ""
 
-unregister-all:
-	@echo "Deleting all connectors..."
+unregister-trading:
+	@echo "Deleting Trading source connector..."
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-trading-connector 2>/dev/null || true
+	@echo "✓ Trading source deleted"
+
+unregister-finance:
+	@echo "Deleting Finance source connector..."
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-finance-connector 2>/dev/null || true
+	@echo "✓ Finance source deleted"
+
+unregister-live:
+	@echo "Deleting Live source connector..."
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-live-connector 2>/dev/null || true
+	@echo "✓ Live source deleted"
+
+unregister-sink:
+	@echo "Deleting sink connector..."
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-connector 2>/dev/null || true
+	@echo "✓ Sink connector deleted"
+
+unregister-all: unregister-trading unregister-finance unregister-live unregister-sink
+	@echo ""
+	@echo "Deleting any remaining connectors..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-trading 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-finance 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-live 2>/dev/null || true
+	@echo ""
 	@echo "✓ All connectors deleted"
 
 connectors:

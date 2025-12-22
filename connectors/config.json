@@ -1,0 +1,36 @@
+{
+  "sources": [
+    {
+      "name": "trading",
+      "database": "xchange_trading",
+      "env_prefix": "TRADING"
+    },
+    {
+      "name": "finance",
+      "database": "xchange_finance",
+      "env_prefix": "FINANCE"
+    },
+    {
+      "name": "live",
+      "database": "xchangelive",
+      "env_prefix": "LIVE"
+    }
+  ],
+  "sinks": [
+    {
+      "name": "trading",
+      "schema": "xchange_trading",
+      "topic_pattern": "xchange_trading"
+    },
+    {
+      "name": "finance",
+      "schema": "xchange_finance",
+      "topic_pattern": "xchange_finance"
+    },
+    {
+      "name": "live",
+      "schema": "xchangelive",
+      "topic_pattern": "xchangelive"
+    }
+  ]
+}
