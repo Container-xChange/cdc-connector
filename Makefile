@@ -18,6 +18,7 @@ help:
 	@echo "Migration:"
 	@echo "  make migrate            - Run pgloader snapshot dump (all databases)"
 	@echo "  make load-trading       - Run pgloader for Trading database only"
+	@echo "  make load-finance-line-item - Run pgloader for Finance T_LINE_ITEM (27M+ rows, partitioned)"
 	@echo "  make add-indexes        - Add indexes and foreign keys after migration"
 	@echo ""
 	@echo "Connectors:"
@@ -89,6 +90,35 @@ load-trading:
 	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/trading-indexes-fks.sql
 	@echo ""
 	@echo "✅ Trading migration completed with indexes!"
+
+load-finance-line-item:
+	@echo "🗄️  Installing pgloader via Homebrew if not present..."
+	@which pgloader > /dev/null || brew install pgloader
+	@echo ""
+	@echo "🗄️  Running pgloader migration for Finance T_LINE_ITEM (27M+ rows)..."
+	@echo "⏳ This may take 10-30 minutes depending on network and data volume..."
+	@echo ""
+	cd bootstrap/pgloader && \
+	export PGSSLMODE=prefer && \
+	PROCESSED_FILE=finance_line_item.processed.load && \
+	sed -e "s|\$${FINANCE_USER}|$$FINANCE_USER|g" \
+	    -e "s|\$${FINANCE_PASS}|$$FINANCE_PASS|g" \
+	    -e "s|\$${FINANCE_HOST}|$$FINANCE_HOST|g" \
+	    -e "s|\$${FINANCE_PORT}|$$FINANCE_PORT|g" \
+	    -e "s|\$${FINANCE_DB}|$$FINANCE_DB|g" \
+	    -e "s|\$${PG_USER}|$$PG_USER|g" \
+	    -e "s|\$${PG_PASS}|$$PG_PASS|g" \
+	    -e "s|\$${PG_HOST}|$$PG_HOST|g" \
+	    -e "s|\$${PG_PORT}|$$PG_PORT|g" \
+	    -e "s|\$${PG_DB}|$$PG_DB|g" \
+	    finance_line_item.load > $$PROCESSED_FILE && \
+	pgloader --no-ssl-cert-verification --verbose --debug $$PROCESSED_FILE && \
+	rm $$PROCESSED_FILE
+	@echo ""
+	@echo "✅ Finance T_LINE_ITEM migration completed with partitioning!"
+	@echo ""
+	@echo "📊 Checking partition distribution..."
+	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -c "SELECT schemaname, tablename, pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size FROM pg_tables WHERE tablename LIKE 't_line_item%' ORDER BY tablename;"
 
 add-indexes:
 	@echo ""

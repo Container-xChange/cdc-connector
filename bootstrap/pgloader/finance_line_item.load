@@ -1,0 +1,126 @@
+LOAD DATABASE
+    FROM mysql://${FINANCE_USER}:${FINANCE_PASS}@${FINANCE_HOST}:${FINANCE_PORT}/${FINANCE_DB}
+    INTO postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}
+
+WITH data only, disable triggers, reset sequences,
+     batch rows = 25000,
+     workers = 8,
+     concurrency = 1,
+     prefetch rows = 10000
+
+-- Only load T_LINE_ITEM table
+INCLUDING ONLY TABLE NAMES MATCHING ~'^T_LINE_ITEM$'
+
+SET PostgreSQL PARAMETERS
+    maintenance_work_mem to '1GB',
+    work_mem to '256MB',
+    max_parallel_workers_per_gather to '4'
+
+SET MySQL PARAMETERS
+    net_read_timeout = '1800',
+    net_write_timeout = '1800'
+
+CAST
+     type tinyint when (> 1 precision) to smallint drop typemod drop default,
+     type smallint to smallint drop typemod drop default,
+     type int to integer drop typemod drop default,
+     type bigint to bigint drop typemod drop default,
+     type decimal to numeric keep typemod drop default,
+     type date drop not null drop default using zero-dates-to-null,
+     type datetime to timestamp drop not null drop default using zero-dates-to-null,
+     type datetime to timestamp keep typemod drop not null drop default using zero-dates-to-null,
+     type timestamp to timestamptz drop not null drop default using zero-dates-to-null,
+     type time to time drop typemod drop default,
+     type varchar to varchar keep typemod,
+     type char to char keep typemod,
+     type mediumtext to text drop typemod,
+     type bit to boolean drop typemod drop default,
+     type enum to varchar drop typemod,
+     type longtext when (~ 'json') to jsonb drop typemod drop default,
+     type longtext to text drop typemod,
+     type binary to bytea drop typemod,
+     type mediumblob to bytea drop typemod,
+     type longblob to bytea drop typemod
+
+BEFORE LOAD DO
+    $$ DROP TABLE IF EXISTS xchange_finance.t_line_item CASCADE $$,
+    $$ CREATE SCHEMA IF NOT EXISTS xchange_finance $$,
+    $$ CREATE TABLE xchange_finance.t_line_item (
+        id bigint NOT NULL,
+        target_account_id bigint NOT NULL,
+        partner_account_id bigint NOT NULL,
+        source_id bigint,
+        source_type varchar(255),
+        reference_id bigint,
+        product_type varchar(255),
+        transaction_date date NOT NULL,
+        approved_date date,
+        amount numeric(15, 4) NOT NULL,
+        line_item_category varchar(50) NOT NULL,
+        creator_type varchar(20) NOT NULL,
+        name varchar(255),
+        comment text,
+        target_line_item_id_for_handling_fee bigint,
+        target_line_item_id_for_refund bigint,
+        target_line_item_id_for_related_credit bigint,
+        target_invoice_id bigint,
+        payment_mean varchar(50),
+        tax_rate numeric(5, 2) DEFAULT 0.00 NOT NULL,
+        active boolean DEFAULT true NOT NULL,
+        created_date timestamptz DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        created_by varchar(50) NOT NULL,
+        last_modified_by varchar(50),
+        last_modified_date timestamptz,
+        metadata jsonb,
+        tag varchar(6),
+        tag_checked_at timestamptz,
+        tax_code varchar(20),
+        tax_code_updated_at timestamptz,
+        transaction_id varchar(36),
+        target_line_item_id_for_credit_note bigint,
+        PRIMARY KEY (id, approved_date)
+    ) PARTITION BY RANGE (approved_date) $$,
+
+    -- Partition 1: Historical + Pending (pre-2022 + NULL)
+    -- NOTE: RANGE partitioning puts NULL values in MINVALUE partition
+    -- Cannot separate NULL into its own partition with RANGE partitioning
+    $$ CREATE TABLE xchange_finance.t_line_item_historical_pending
+       PARTITION OF xchange_finance.t_line_item
+       FOR VALUES FROM (MINVALUE) TO ('2022-01-01') $$,
+
+    -- Active partitions: 2022 onwards (yearly)
+    $$ CREATE TABLE xchange_finance.t_line_item_2022
+       PARTITION OF xchange_finance.t_line_item
+       FOR VALUES FROM ('2022-01-01') TO ('2023-01-01') $$,
+
+    $$ CREATE TABLE xchange_finance.t_line_item_2023
+       PARTITION OF xchange_finance.t_line_item
+       FOR VALUES FROM ('2023-01-01') TO ('2024-01-01') $$,
+
+    $$ CREATE TABLE xchange_finance.t_line_item_2024
+       PARTITION OF xchange_finance.t_line_item
+       FOR VALUES FROM ('2024-01-01') TO ('2025-01-01') $$,
+
+    $$ CREATE TABLE xchange_finance.t_line_item_2025
+       PARTITION OF xchange_finance.t_line_item
+       FOR VALUES FROM ('2025-01-01') TO ('2026-01-01') $$,
+
+    $$ CREATE TABLE xchange_finance.t_line_item_2026
+       PARTITION OF xchange_finance.t_line_item
+       FOR VALUES FROM ('2026-01-01') TO ('2027-01-01') $$,
+
+    -- Default partition for far-future dates
+    $$ CREATE TABLE xchange_finance.t_line_item_future
+       PARTITION OF xchange_finance.t_line_item DEFAULT $$
+
+AFTER LOAD DO
+    -- Primary query pattern: account + approved_date (for invoicing)
+    $$ CREATE INDEX idx_line_item_account_approved
+       ON xchange_finance.t_line_item (target_account_id, approved_date) $$,
+
+    -- For queries filtering by approved_date only
+    $$ CREATE INDEX idx_line_item_approved_date
+       ON xchange_finance.t_line_item (approved_date) $$,
+
+    $$ ALTER SCHEMA xchange_finance OWNER TO ${PG_USER} $$,
+    $$ ALTER TABLE xchange_finance.t_line_item OWNER TO ${PG_USER} $$;
