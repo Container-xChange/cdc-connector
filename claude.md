@@ -1,3 +1,9 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+---
+
 # CDC Pipeline Project - CRITICAL INSTRUCTIONS
 
 ## 🚨 CDC PIPELINE ARCHITECTURE - READ THIS FIRST
@@ -120,7 +126,12 @@
 
 ### Kafka:
 - AWS MSK cluster (3 brokers)
-- Schema Registry: http://schema-registry-prod.eks
+- Schema Registry: http://schema-registry-non-prod.eks
+
+### Debezium Connect:
+- **Production**: Deployed on Fly.io (https://cdc-connector.fly.dev)
+- **Not local**: No docker-compose for Debezium - uses remote instance
+- Connector registration happens via Makefile commands that curl to DEBEZIUM_URL
 
 ---
 
@@ -162,25 +173,45 @@
 
 ---
 
-## 🎯 Current Status & Progress
+## Connector Configuration Architecture
 
-### ✅ Successfully Tested:
-- **T_ABSTRACT_OFFER CDC** - Working end-to-end
-  - Trading source connector capturing changes
-  - Kafka topics receiving events
-  - Postgres sink writing updates
-  - Verified with real database updates
+**Source Connectors** (connectors/sources/mariadb/):
+- `trading.json`, `finance.json`, `live.json`
+- Use environment variable substitution via `envsubst`
+- Capture binlog changes from MariaDB
+- Key settings:
+  - `snapshot.mode: "schema_only"` - No data snapshots
+  - `table.include.list` - Explicit table allowlist from env vars
+  - `topic.prefix` - Kafka topic namespace (e.g., "xchange_trading")
 
-### 🔄 Next Steps:
-1. **Remove hardcoded values from connector configs**
-   - Test with environment variables/parameterized configs
-   - Ensure dynamic configuration still works
-2. **Scale to remaining tables**
-   - Apply working pattern to other Trading tables
-   - Deploy Finance and Live connectors
-3. **Production readiness**
-   - Monitoring and alerting setup
-   - Error handling validation
+**Sink Connectors** (connectors/sinks/postgres/):
+- `trading.json`, `finance.json`, `live.json`
+- Use JDBC sink connector to write to Postgres
+- Key settings:
+  - `insert.mode: "upsert"` - Updates existing records
+  - `topics.regex` - Matches Kafka topics (e.g., `xchange_trading\.xchange_trading\..*`)
+  - `transforms.route` - Routes to correct schema/table
+
+**Deployment**:
+- Connectors deployed via `scripts/deploy/deploy-connectors.sh`
+- Script handles env var substitution and registration
+- All operations accessible via Makefile commands
+
+---
+
+## Troubleshooting & Operations
+
+For detailed operational procedures, see `docs/CDC-OPS.md`:
+- Schema change handling
+- Table addition/removal
+- Connector lifecycle management
+- Common debugging procedures
+- Performance tuning guidelines
+
+**Quick debugging**:
+- Check connector status: `make connector-status C=<name>`
+- View all connectors: `make connectors`
+- Check Debezium health: `make check-health`
 
 ---
 
@@ -209,9 +240,33 @@ make clean
 
 ---
 
-# important-instruction-reminders
-Do what has been asked; nothing more, nothing less.
-NEVER create files unless they're absolutely necessary for achieving your goal.
-ALWAYS prefer editing an existing file to creating a new one.
-NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
-**MANDATORY: Check existing files/scripts/commands BEFORE creating anything new.**
+## Testing CDC Changes
+
+**Important**: Changes must be made in MariaDB AFTER connectors are registered to be captured.
+
+**Test workflow**:
+1. Register connectors: `make register-all`
+2. Make changes in MariaDB (INSERT/UPDATE/DELETE)
+3. Verify in Kafka topics (check Debezium logs)
+4. Verify in Postgres target database
+
+**Do not**:
+- Change data before connectors are registered (won't be captured)
+- Expect initial data to flow through CDC (use pgloader for initial load)
+- Test with local MariaDB (use actual AWS RDS instances from .env)
+
+---
+
+# Important Reminders
+
+**File Creation Policy**:
+- NEVER create files unless absolutely necessary for the goal
+- ALWAYS prefer editing existing files over creating new ones
+- NEVER proactively create documentation files (*.md) or README files unless explicitly requested
+- **MANDATORY**: Check existing files/scripts/commands BEFORE creating anything new
+
+**Development Policy**:
+- Do what has been asked; nothing more, nothing less
+- Use existing Makefile commands instead of raw docker/curl commands
+- Check `.env` for all configuration values
+- Respect the two-phase architecture: pgloader for initial load, CDC for changes only

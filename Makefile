@@ -21,7 +21,6 @@ help:
 	@echo "  make add-indexes        - Add indexes and foreign keys after migration"
 	@echo ""
 	@echo "Connectors:"
-	@echo "  make generate-connectors    - Generate connector configs from templates"
 	@echo "  make register-trading       - Register Trading source + sink"
 	@echo "  make register-finance       - Register Finance source + sink"
 	@echo "  make register-live          - Register Live source + sink"
@@ -40,10 +39,6 @@ help:
 	@echo ""
 	@echo "Debugging:"
 	@echo "  make connector-status C=<connector-name> - Get connector status"
-
-generate-connectors:
-	@echo "🔧 Generating connector configurations from templates..."
-	@bash scripts/generate-connectors.sh
 
 migrate:
 	@echo "🗄️  Installing pgloader via Homebrew if not present..."
@@ -156,7 +151,7 @@ register-sink-finance:
 
 register-sink-live:
 	@echo "Registering Postgres Live sink connector..."
-	@envsubst < connectors/sinks/postgres/live.json | \
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/live.json | \
 	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .

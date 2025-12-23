@@ -1,0 +1,78 @@
+{
+  "name": "mariadb-trading-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "${TRADING_HOST}",
+    "database.port": "${TRADING_PORT}",
+    "database.user": "${TRADING_USER}",
+    "database.password": "${TRADING_PASS}",
+    "database.server.id": "${TRADING_SERVER_ID}",
+
+    "topic.prefix": "xchange_trading",
+    "database.include.list": "xchange_trading",
+
+    "table.include.list": "${TRADING_TABLE_ALLOWLIST}",
+
+    "snapshot.mode": "schema_only",
+    "snapshot.locking.mode": "none",
+
+    "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
+    "schema.history.internal.kafka.topic": "xchange_trading.schema-history",
+    "schema.history.internal.store.only.captured.tables.ddl": "true",
+    "schema.history.internal.skip.unparseable.ddl": "true",
+    "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "schema.history.internal.producer.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "schema.history.internal.producer.sasl.jaas.config": "org.apache.kafka.common.security.${KAFKA_LOGIN_MODULE} required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "schema.history.internal.producer.ssl.endpoint.identification.algorithm": "https",
+    "schema.history.internal.consumer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "schema.history.internal.consumer.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "schema.history.internal.consumer.sasl.jaas.config": "org.apache.kafka.common.security.${KAFKA_LOGIN_MODULE} required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "schema.history.internal.consumer.ssl.endpoint.identification.algorithm": "https",
+    "database.history.skip.unparseable.ddl": "true",
+    "include.schema.changes": "true",
+    "include.schema.comments": "false",
+    "inconsistent.schema.handling.mode": "warn",
+
+    "decimal.handling.mode": "precise",
+    "bigint.unsigned.handling.mode": "long",
+    "time.precision.mode": "adaptive_time_microseconds",
+
+    "column.propagate.source.type": ".*",
+
+    "converters": "boolean",
+    "boolean.type": "io.debezium.connector.mysql.converters.TinyIntOneToBooleanConverter",
+
+    "tombstones.on.delete": "true",
+
+    "binlog.buffer.size": "8192",
+
+    "database.connectionTimeZone": "UTC",
+
+    "heartbeat.interval.ms": "30000",
+    "heartbeat.topics.prefix": "__debezium-heartbeat",
+
+    "event.processing.failure.handling.mode": "warn",
+
+    "topic.creation.enable": "true",
+    "topic.creation.default.replication.factor": "3",
+    "topic.creation.default.partitions": "1",
+    "topic.creation.default.cleanup.policy": "compact,delete",
+    "topic.creation.default.compression.type": "lz4",
+    "topic.creation.default.retention.ms": "15552000000",
+    "topic.creation.default.delete.retention.ms": "86400000",
+    "topic.creation.default.min.insync.replicas": "2",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.add.fields": "op,source.ts_ms,source.db,source.table"
+  }
+}

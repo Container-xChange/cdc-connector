@@ -1,0 +1,38 @@
+{
+  "name": "postgres-sink-live",
+  "config": {
+    "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
+    "tasks.max": "2",
+
+    "connection.url": "${SINK_DB_URL}&currentSchema=xchangelive",
+    "connection.username": "${SINK_DB_USER}",
+    "connection.password": "${SINK_DB_PASSWORD}",
+
+    "topics.regex": "xchangelive\\.xchangelive\\..*",
+
+    "insert.mode": "upsert",
+    "primary.key.mode": "record_key",
+    "delete.enabled": "true",
+
+    "schema.evolution": "basic",
+    "quote.identifiers": "false",
+
+    "consumer.override.auto.offset.reset": "latest",
+    "consumer.override.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "consumer.override.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "consumer.override.sasl.jaas.config": "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "consumer.override.ssl.endpoint.identification.algorithm": "https",
+
+    "converters": "boolean",
+    "boolean.type": "io.debezium.connector.mysql.converters.TinyIntOneToBooleanConverter",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+
+    "transforms": "route",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": "xchangelive\\.xchangelive\\.(.*)",
+    "transforms.route.replacement": "$1"
+  }
+}

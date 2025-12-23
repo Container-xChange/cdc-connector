@@ -2,7 +2,8 @@ LOAD DATABASE
     FROM mysql://${LIVE_USER}:${LIVE_PASS}@${LIVE_HOST}:${LIVE_PORT}/${LIVE_DB}
     INTO postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}
 
-WITH include drop, create tables, reset sequences,
+WITH
+     include drop, create tables, reset sequences,
      workers = 8, concurrency = 1,
      multiple readers per thread, rows per range = 10000
 
@@ -53,4 +54,5 @@ BEFORE LOAD DO
     $$ CREATE SCHEMA xchangelive; $$
 
 AFTER LOAD DO
-    $$ ALTER SCHEMA xchangelive OWNER TO ${PG_USER}; $$;
+    $$ ALTER SCHEMA xchangelive OWNER TO ${PG_USER}; $$,
+    $$ ALTER TABLE xchangelive.t_carrier RENAME COLUMN "user" TO owner_user_id; $$;

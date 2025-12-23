@@ -2,8 +2,9 @@ LOAD DATABASE
     FROM mysql://${FINANCE_USER}:${FINANCE_PASS}@${FINANCE_HOST}:${FINANCE_PORT}/${FINANCE_DB}
     INTO postgresql://${PG_USER}:${PG_PASS}@${PG_HOST}:${PG_PORT}/${PG_DB}
 
-WITH include drop, create tables, create indexes, reset sequences,
-     workers = 16, concurrency = 4,
+WITH
+     include drop, create tables, create indexes, reset sequences,
+     workers = 16, concurrency = 1,
      multiple readers per thread, rows per range = 50000, prefetch rows = 5000,
      batch rows = 25000, batch size = 20MB
 

@@ -1,12 +1,5 @@
 FROM debezium/connect:3.0.0.Final
 
-# Configure Kafka Connect REST API to listen on all interfaces (required for Fly.io)
-# Must use CONNECT_ prefix for the Debezium Connect image
-ENV CONNECT_REST_HOST_NAME=0.0.0.0
-ENV CONNECT_REST_PORT=8083
-ENV CONNECT_REST_ADVERTISED_HOST_NAME=cdc-connector.fly.dev
-ENV CONNECT_REST_ADVERTISED_PORT=8083
-
 # Switch to root for system setup
 USER root
 
@@ -28,21 +21,15 @@ COPY connectors/profile-286.ovpn /kafka/profile-286.ovpn
 COPY connectors/pass-prod.txt /pass-prod.txt
 COPY connectors/entrypoint-prod.sh /entrypoint-prod.sh
 
-# Copy connector generation files
-COPY connectors/config.json /kafka/connectors/config.json
-COPY connectors/sources/mariadb/source.template.json /kafka/connectors/sources/mariadb/source.template.json
-COPY connectors/sinks/postgres/sink.template.json /kafka/connectors/sinks/postgres/sink.template.json
-COPY scripts/generate-connectors.sh /kafka/scripts/generate-connectors.sh
+# Copy connector configurations
+COPY connectors/sources/mariadb/*.json /kafka/connectors/sources/mariadb/
+COPY connectors/sinks/postgres/*.json /kafka/connectors/sinks/postgres/
 COPY scripts/deploy /kafka/scripts/deploy
-
-# Generate connector configurations at build time
-RUN cd /kafka && bash scripts/generate-connectors.sh
 
 # Set permissions
 RUN chmod 600 /pass-prod.txt && \
     chmod 644 /kafka/profile-286.ovpn && \
     chmod +x /entrypoint-prod.sh && \
-    chmod +x /kafka/scripts/generate-connectors.sh && \
     chmod +x /kafka/scripts/deploy/deploy-connectors.sh
 
 # Stay as root (OpenVPN requires root privileges)
