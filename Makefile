@@ -1,171 +1,234 @@
-.PHONY: help start stop restart status logs register-trading register-finance register-live register-sink unregister-all connectors check-health clean
+.PHONY: help register-trading register-finance register-live register-sink unregister-all connectors check-health deploy connector-status
 
 SHELL := /bin/bash
-ENV_FILE := env/local.env
+
+# Use .ONESHELL to ensure all commands in a recipe run in the same shell
+.ONESHELL:
+.EXPORT_ALL_VARIABLES:
+
+# Source .env if it exists, otherwise rely on existing environment
+ENV_FILE := .env
+ifneq (,$(wildcard $(ENV_FILE)))
+    include $(ENV_FILE)
+endif
 
 help:
-	@echo "CDC Pipeline - Debezium + Redpanda (3 MariaDB sources)"
+	@echo "CDC Pipeline - Debezium + Confluent Cloud (3 MariaDB sources)"
 	@echo ""
-	@echo "Setup:"
-	@echo "  make start              - Start CDC stack (Redpanda + Debezium + Postgres)"
-	@echo "  make stop               - Stop CDC stack"
-	@echo "  make restart            - Restart CDC stack"
-	@echo "  make clean              - Stop and remove all containers/volumes"
+	@echo "Migration:"
+	@echo "  make migrate            - Run pgloader snapshot dump (all databases)"
+	@echo "  make load-trading       - Run pgloader for Trading database only"
+	@echo "  make add-indexes        - Add indexes and foreign keys after migration"
 	@echo ""
 	@echo "Connectors:"
-	@echo "  make register-trading   - Register xchange_trading source"
-	@echo "  make register-finance   - Register xchange_finance source"
-	@echo "  make register-live      - Register xchangelive source"
-	@echo "  make register-sink      - Register Postgres sink"
-	@echo "  make register-all       - Register all 4 connectors"
-	@echo "  make unregister-all     - Delete all connectors"
-	@echo "  make connectors         - List all connectors and their status"
-	@echo "  make check-health       - Check health of all services"
+	@echo "  make register-trading       - Register Trading source + sink"
+	@echo "  make register-finance       - Register Finance source + sink"
+	@echo "  make register-live          - Register Live source + sink"
+	@echo "  make register-sources       - Register all source connectors only"
+	@echo "  make register-sink          - Register all sink connectors only"
+	@echo "  make register-all           - Register all connectors (uses deploy-connectors.sh)"
+	@echo "  make unregister-trading     - Delete Trading source + sink"
+	@echo "  make unregister-finance     - Delete Finance source + sink"
+	@echo "  make unregister-live        - Delete Live source + sink"
+	@echo "  make unregister-all         - Delete all connectors"
+	@echo "  make connectors             - List all connectors and their status"
+	@echo "  make check-health           - Check Debezium health"
 	@echo ""
-	@echo "Monitoring:"
-	@echo "  make logs               - Tail all container logs"
-	@echo "  make logs-debezium      - Tail Debezium logs"
-	@echo "  make logs-redpanda      - Tail Redpanda logs"
-	@echo "  make console            - Open Redpanda Console (http://localhost:8080)"
+	@echo "Deployment:"
+	@echo "  make deploy             - Register all CDC connectors"
 	@echo ""
 	@echo "Debugging:"
-	@echo "  make topics             - List all Kafka topics"
-	@echo "  make consume-topic T=<topic> - Consume messages from topic"
 	@echo "  make connector-status C=<connector-name> - Get connector status"
 
-start:
-	@echo "Starting CDC stack..."
-	@if [ ! -f $(ENV_FILE) ]; then \
-		echo "Error: $(ENV_FILE) not found."; \
-		exit 1; \
-	fi
-	docker compose -f docker/docker-compose.yml up -d redpanda console debezium postgres
-	@echo "Waiting for services to be healthy..."
-	@sleep 5
-	@make check-health
+migrate:
+	@echo "🗄️  Installing pgloader via Homebrew if not present..."
+	@which pgloader > /dev/null || brew install pgloader
+	@echo ""
+	@echo "🗄️  Running pgloader migration (all databases)..."
+	cd bootstrap/pgloader && bash load-all.sh
+	@echo ""
+	@echo "📊 Adding indexes and foreign keys..."
+	@echo ""
+	@echo "  → Trading indexes/FKs..."
+	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/trading-indexes-fks.sql > /dev/null 2>&1
+	@echo "  → Finance indexes/FKs..."
+	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/finance-indexes-fks.sql > /dev/null 2>&1
+	@echo "  → Live indexes/FKs..."
+	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/live-indexes-fks.sql > /dev/null 2>&1
+	@echo ""
+	@echo "✅ Migration completed with indexes!"
 
-stop:
-	docker compose -f docker/docker-compose.yml down
+load-trading:
+	@echo "🗄️  Installing pgloader via Homebrew if not present..."
+	@which pgloader > /dev/null || brew install pgloader
+	@echo ""
+	@echo "🗄️  Running pgloader migration (Trading database only)..."
+	cd bootstrap/pgloader && \
+	export PGSSLMODE=prefer && \
+	PROCESSED_FILE=trading.processed.load && \
+	sed -e "s|\$${TRADING_USER}|$$TRADING_USER|g" \
+	    -e "s|\$${TRADING_PASS}|$$TRADING_PASS|g" \
+	    -e "s|\$${TRADING_HOST}|$$TRADING_HOST|g" \
+	    -e "s|\$${TRADING_PORT}|$$TRADING_PORT|g" \
+	    -e "s|\$${TRADING_DB}|$$TRADING_DB|g" \
+	    -e "s|\$${PG_USER}|$$PG_USER|g" \
+	    -e "s|\$${PG_PASS}|$$PG_PASS|g" \
+	    -e "s|\$${PG_HOST}|$$PG_HOST|g" \
+	    -e "s|\$${PG_PORT}|$$PG_PORT|g" \
+	    -e "s|\$${PG_DB}|$$PG_DB|g" \
+	    trading.load > $$PROCESSED_FILE && \
+	pgloader --no-ssl-cert-verification --verbose $$PROCESSED_FILE && \
+	rm $$PROCESSED_FILE
+	@echo ""
+	@echo "📊 Adding Trading indexes and foreign keys..."
+	@PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/trading-indexes-fks.sql
+	@echo ""
+	@echo "✅ Trading migration completed with indexes!"
 
-restart: stop start
-
-clean:
-	docker compose -f docker/docker-compose.yml down -v
-
-status:
-	@docker compose -f docker/docker-compose.yml ps
-
-logs:
-	docker compose -f docker/docker-compose.yml logs -f
-
-logs-debezium:
-	docker compose -f docker/docker-compose.yml logs -f debezium
-
-logs-redpanda:
-	docker compose -f docker/docker-compose.yml logs -f redpanda
+add-indexes:
+	@echo ""
+	@echo "📊 Adding indexes and foreign keys..."
+	@echo ""
+	@echo "Adding Trading indexes/FKs..."
+	PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/trading-indexes-fks.sql
+	@echo ""
+	@echo "Adding Finance indexes/FKs..."
+	PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/finance-indexes-fks.sql
+	@echo ""
+	@echo "Adding Live indexes/FKs..."
+	PGPASSWORD=$$PG_PASS psql -h $$PG_HOST -p $$PG_PORT -U $$PG_USER -d $$PG_DB -f bootstrap/sql/live-indexes-fks.sql
+	@echo ""
+	@echo "✅ All indexes and foreign keys created successfully!"
 
 check-health:
-	@echo "Checking service health..."
-	@echo -n "Redpanda: "
-	@curl -sf http://localhost:9644/v1/cluster/health_overview > /dev/null && echo "✓ healthy" || echo "✗ unhealthy"
-	@echo -n "Debezium: "
-	@curl -sf http://localhost:8083/ > /dev/null && echo "✓ healthy" || echo "✗ unhealthy"
-	@echo -n "Postgres: "
-	@docker compose -f docker/docker-compose.yml exec -T postgres pg_isready -U postgres > /dev/null 2>&1 && echo "✓ healthy" || echo "✗ unhealthy"
+	@echo "Checking Debezium health..."
+	@curl -sf $$DEBEZIUM_URL/ > /dev/null && echo "✓ Debezium healthy" || echo "✗ Debezium unhealthy"
 
-register-trading:
+register-trading-source:
 	@echo "Registering xchange_trading source connector..."
-	@set -a; source $(ENV_FILE); set +a; \
-	envsubst < connectors/sources/mariadb/trading.json | \
-	curl -X POST http://localhost:8083/connectors \
+	@envsubst < connectors/sources/mariadb/trading.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .
 	@echo ""
 	@echo "✓ Trading source registered"
 
-register-finance:
+register-finance-source:
 	@echo "Registering xchange_finance source connector..."
-	@set -a; source $(ENV_FILE); set +a; \
-	envsubst < connectors/sources/mariadb/finance.json | \
-	curl -X POST http://localhost:8083/connectors \
+	@envsubst < connectors/sources/mariadb/finance.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .
 	@echo ""
 	@echo "✓ Finance source registered"
 
-register-live:
+register-live-source:
 	@echo "Registering xchangelive source connector..."
-	@set -a; source $(ENV_FILE); set +a; \
-	envsubst < connectors/sources/mariadb/live.json | \
-	curl -X POST http://localhost:8083/connectors \
+	@envsubst < connectors/sources/mariadb/live.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .
 	@echo ""
 	@echo "✓ Live source registered"
 
-register-sink:
-	@echo "Registering Postgres sink connector..."
-	@set -a; source $(ENV_FILE); set +a; \
-	envsubst < connectors/sinks/postgres/sink.json | \
-	curl -X POST http://localhost:8083/connectors \
+register-sink-trading:
+	@echo "Registering Postgres Trading sink connector..."
+	@envsubst < connectors/sinks/postgres/trading.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .
 	@echo ""
-	@echo "✓ Sink connector registered"
+	@echo "✓ Trading sink registered"
+
+register-sink-finance:
+	@echo "Registering Postgres Finance sink connector..."
+	@envsubst < connectors/sinks/postgres/finance.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Finance sink registered"
+
+register-sink-live:
+	@echo "Registering Postgres Live sink connector..."
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/live.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Live sink registered"
+
+register-trading: register-trading-source register-sink-trading
+	@echo ""
+	@echo "✓ Trading source and sink registered"
+
+register-finance: register-finance-source register-sink-finance
+	@echo ""
+	@echo "✓ Finance source and sink registered"
+
+register-live: register-live-source register-sink-live
+	@echo ""
+	@echo "✓ Live source and sink registered"
+
+register-sink: register-sink-trading register-sink-live
+	@echo ""
+	@echo "✓ All sink connectors registered"
+
+register-sources: register-trading-source register-finance-source register-live-source
+	@echo ""
+	@echo "✓ All source connectors registered"
 
 register-all:
 	@echo "🔌 Deploying all connectors..."
 	./scripts/deploy/deploy-connectors.sh
 
-migrate:
-	@echo "📦 Running pgloader migration..."
-	./bootstrap/pgloader/load-all.sh
-	@echo "✅ Migration completed"
-
-add-pks:
-	@echo "🔑 Adding primary keys to all tables..."
-	docker compose -f docker/docker-compose.yml exec -T postgres psql -U postgres -d cdc_pipeline -f - < bootstrap/sql/add-primary-keys.sql
-	@echo "✅ Primary keys added"
-
-deploy: start
-	@echo ""
-	@echo "⏳ Waiting for Postgres to be ready..."
-	@sleep 15
-	@echo ""
-	@make migrate
-	@echo ""
-	@make add-pks
-	@echo ""
+deploy:
 	@make register-all
 	@echo ""
 	@echo "======================================"
-	@echo "✅ Full CDC Pipeline deployment complete!"
+	@echo "✅ CDC Pipeline connectors deployed!"
 	@echo "======================================"
 	@echo ""
-	@echo "📊 Service URLs:"
-	@echo "   Redpanda Console:  http://localhost:8080"
-	@echo "   Debezium Connect:  http://localhost:8083"
-	@echo "   Postgres:          localhost:5432"
+	@echo "📊 Debezium Connect: $$DEBEZIUM_URL"
 	@echo ""
 	@echo "🔍 Check status with: make connectors"
 	@echo ""
 
-unregister-all:
-	@echo "Deleting all connectors..."
-	@curl -s -X DELETE http://localhost:8083/connectors/mariadb-trading-connector 2>/dev/null || true
-	@curl -s -X DELETE http://localhost:8083/connectors/mariadb-finance-connector 2>/dev/null || true
-	@curl -s -X DELETE http://localhost:8083/connectors/mariadb-live-connector 2>/dev/null || true
-	@curl -s -X DELETE http://localhost:8083/connectors/postgres-sink-xchangelive 2>/dev/null || true
-	@curl -s -X DELETE http://localhost:8083/connectors/postgres-sink-trading 2>/dev/null || true
-	@curl -s -X DELETE http://localhost:8083/connectors/postgres-sink-finance 2>/dev/null || true
+unregister-trading:
+	@echo "Deleting Trading source connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-trading-connector 2>/dev/null || true
+	@echo "✓ Trading source deleted"
+
+unregister-finance:
+	@echo "Deleting Finance source connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-finance-connector 2>/dev/null || true
+	@echo "✓ Finance source deleted"
+
+unregister-live:
+	@echo "Deleting Live source connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-live-connector 2>/dev/null || true
+	@echo "✓ Live source deleted"
+
+unregister-sink:
+	@echo "Deleting sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-connector 2>/dev/null || true
+	@echo "✓ Sink connector deleted"
+
+unregister-all: unregister-trading unregister-finance unregister-live unregister-sink
+	@echo ""
+	@echo "Deleting any remaining connectors..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-trading 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-finance 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-live 2>/dev/null || true
+	@echo ""
 	@echo "✓ All connectors deleted"
 
 connectors:
 	@echo "Registered connectors:"
-	@curl -s http://localhost:8083/connectors | jq -r '.[]' | while read c; do \
+	@curl -s $$DEBEZIUM_URL/connectors | jq -r '.[]' | while read c; do \
 		echo ""; \
 		echo "$$c:"; \
-		curl -s http://localhost:8083/connectors/$$c/status | jq '{state: .connector.state, tasks: [.tasks[].state]}'; \
+		curl -s $$DEBEZIUM_URL/connectors/$$c/status | jq '{state: .connector.state, tasks: [.tasks[].state]}'; \
 	done
 
 connector-status:
@@ -173,18 +236,15 @@ connector-status:
 		echo "Usage: make connector-status C=<connector-name>"; \
 		exit 1; \
 	fi
-	@curl -s http://localhost:8083/connectors/$(C)/status | jq .
+	@curl -s $$DEBEZIUM_URL/connectors/$(C)/status | jq .
 
-topics:
-	@docker compose -f docker/docker-compose.yml exec -T redpanda rpk topic list
-
-consume-topic:
-	@if [ -z "$(T)" ]; then \
-		echo "Usage: make consume-topic T=<topic-name>"; \
+restart-connector:
+	@if [ -z "$(C)" ]; then \
+		echo "Usage: make restart-connector C=<connector-name>"; \
 		exit 1; \
 	fi
-	@docker compose -f docker/docker-compose.yml exec redpanda rpk topic consume $(T) --format json | jq .
+	@echo "Restarting connector $(C)..."
+	@curl -s -X POST $$DEBEZIUM_URL/connectors/$(C)/restart
+	@echo ""
+	@echo "✓ Connector restarted"
 
-console:
-	@echo "Opening Redpanda Console at http://localhost:8080"
-	@open http://localhost:8080 || xdg-open http://localhost:8080 || echo "Visit: http://localhost:8080"

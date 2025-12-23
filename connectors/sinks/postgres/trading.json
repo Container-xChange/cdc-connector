@@ -2,9 +2,9 @@
   "name": "postgres-sink-trading",
   "config": {
     "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
-    "tasks.max": "3",
+    "tasks.max": "2",
 
-    "connection.url": "${SINK_DB_URL}",
+    "connection.url": "${SINK_DB_URL}&currentSchema=xchange_trading",
     "connection.username": "${SINK_DB_USER}",
     "connection.password": "${SINK_DB_PASSWORD}",
 
@@ -16,8 +16,20 @@
 
     "schema.evolution": "basic",
     "quote.identifiers": "false",
-    "hibernate.dialect": "org.hibernate.dialect.PostgreSQLDialect",
-    "table.name.format": "xchange_trading.${topic}",
+
+    "consumer.override.auto.offset.reset": "latest",
+    "consumer.override.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "consumer.override.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "consumer.override.sasl.jaas.config": "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "consumer.override.ssl.endpoint.identification.algorithm": "https",
+
+    "converters": "boolean",
+    "boolean.type": "io.debezium.connector.mysql.converters.TinyIntOneToBooleanConverter",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+    
 
     "transforms": "route",
     "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
