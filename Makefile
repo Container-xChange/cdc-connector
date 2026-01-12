@@ -41,11 +41,12 @@ help:
 	@echo "  make connector-status C=<connector-name> - Get connector status"
 
 migrate:
-	@echo "🗄️  Installing pgloader via Homebrew if not present..."
-	@which pgloader > /dev/null || brew install pgloader
+	@echo "🗄️  Running Python migration (MariaDB -> Postgres)..."
 	@echo ""
-	@echo "🗄️  Running pgloader migration (all databases)..."
-	cd bootstrap/pgloader && bash load-all.sh
+	@which python3 > /dev/null || (echo "❌ python3 not found. Install python3" && exit 1)
+	@python3 -c "import mysql.connector" 2>/dev/null || (echo "Installing mysql-connector-python..." && pip3 install mysql-connector-python)
+	@python3 -c "import psycopg2" 2>/dev/null || (echo "Installing psycopg2-binary..." && pip3 install psycopg2-binary)
+	python3 bootstrap/migrate.py
 	@echo ""
 	@echo "📊 Adding indexes and foreign keys..."
 	@echo ""
@@ -124,7 +125,7 @@ register-finance-source:
 
 register-live-source:
 	@echo "Registering xchangelive source connector..."
-	@envsubst < connectors/sources/mariadb/live.json | \
+	@envsubst '$${LIVE_HOST} $${LIVE_PORT} $${LIVE_USER} $${LIVE_PASS} $${LIVE_SERVER_ID} $${LIVE_TABLE_ALLOWLIST} $${KAFKA_BOOTSTRAP_SERVERS} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${KAFKA_LOGIN_MODULE} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sources/mariadb/live.json | \
 	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .
@@ -198,16 +199,25 @@ unregister-trading:
 	@echo "Deleting Trading source connector..."
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-trading-connector 2>/dev/null || true
 	@echo "✓ Trading source deleted"
+	@echo "Deleting Trading sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-trading 2>/dev/null || true
+	@echo "✓ Trading sink deleted"
 
 unregister-finance:
 	@echo "Deleting Finance source connector..."
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-finance-connector 2>/dev/null || true
 	@echo "✓ Finance source deleted"
+	@echo "Deleting Finance sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-finance 2>/dev/null || true
+	@echo "✓ Finance sink deleted"
 
 unregister-live:
 	@echo "Deleting Live source connector..."
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-live-connector 2>/dev/null || true
 	@echo "✓ Live source deleted"
+	@echo "Deleting Live sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-live 2>/dev/null || true
+	@echo "✓ Live sink deleted"
 
 unregister-sink:
 	@echo "Deleting sink connector..."
@@ -247,4 +257,36 @@ restart-connector:
 	@curl -s -X POST $$DEBEZIUM_URL/connectors/$(C)/restart
 	@echo ""
 	@echo "✓ Connector restarted"
+
+# Incremental snapshot testing (trading only - uses SAME Kafka topics as regular connector)
+test-incremental-source:
+	@echo "🧪 Registering Trading source with INCREMENTAL snapshot..."
+	@echo "   Uses same Kafka topics: xchange_trading.xchange_trading.*"
+	@echo "   Chunk size: 8192 rows"
+	@echo ""
+	@envsubst < connectors/sources/mariadb/trading-incremental.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Incremental source registered"
+	@echo "📊 Monitor with: flyctl logs --app cdc-connector | grep snapshot"
+
+test-incremental-full:
+	@echo "🧪 Testing incremental snapshot: source → Kafka → sink"
+	@echo ""
+	@$(MAKE) test-incremental-source
+	@echo ""
+	@echo "⏳ Wait for snapshot to complete, then run:"
+	@echo "   make register-sink-trading"
+	@echo ""
+	@echo "Monitor progress:"
+	@echo "   flyctl logs --app cdc-connector | grep -E '(snapshot|rows)'"
+	@echo "   make connector-status C=mariadb-trading-connector"
+
+test-incremental-cleanup:
+	@echo "🧹 Cleaning up incremental test..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-trading-connector 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-trading 2>/dev/null || true
+	@echo "✓ Test connectors deleted"
 

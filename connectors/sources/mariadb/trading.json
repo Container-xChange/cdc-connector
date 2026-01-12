@@ -13,10 +13,17 @@
     "topic.prefix": "xchange_trading",
     "database.include.list": "xchange_trading",
 
-    "table.include.list": "${TRADING_TABLE_ALLOWLIST}",
+    "table.include.list": "xchange_trading\\.T_.*,xchange_trading\\.debezium_signal",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",
+    "snapshot.max.threads": "4",
+
+    "incremental.snapshot.chunk.size": "8192",
+    "incremental.snapshot.allow.schema.changes": "true",
+
+    "signal.data.collection": "xchange_trading.debezium_signal",
+    "signal.enabled.channels": "source",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
     "schema.history.internal.kafka.topic": "xchange_trading.schema-history",

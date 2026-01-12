@@ -2,13 +2,13 @@
   "name": "postgres-sink-finance",
   "config": {
     "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
-    "tasks.max": "2",
+    "tasks.max": "1",
 
-    "connection.url": "${SINK_DB_URL}&currentSchema=xchange_finance",
+    "connection.url": "${SINK_DB_URL}&currentSchema=xchange_finance_li",
     "connection.username": "${SINK_DB_USER}",
     "connection.password": "${SINK_DB_PASSWORD}",
 
-    "topics.regex": "xchange_finance\\.xchange_finance\\..*",
+    "topics": "xchange_finance_li.xchange_finance.T_LINE_ITEM",
 
     "insert.mode": "upsert",
     "primary.key.mode": "record_key",
@@ -17,7 +17,8 @@
     "schema.evolution": "basic",
     "quote.identifiers": "false",
 
-    "consumer.override.auto.offset.reset": "latest",
+    "consumer.override.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
+    "consumer.override.auto.offset.reset": "earliest",
     "consumer.override.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
     "consumer.override.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
     "consumer.override.sasl.jaas.config": "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
@@ -32,7 +33,7 @@
 
     "transforms": "route",
     "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
-    "transforms.route.regex": "xchange_finance\\.xchange_finance\\.(.*)",
+    "transforms.route.regex": "xchange_finance_li\\.xchange_finance\\.(.*)",
     "transforms.route.replacement": "$1"
   }
 }

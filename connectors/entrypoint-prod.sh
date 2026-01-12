@@ -25,23 +25,5 @@ nc -zv 172.31.23.19 3306 2>&1 | head -1 || echo "⚠️  Live DB unreachable"
 
 echo "🚀 Starting Debezium Kafka Connect..."
 
-# Start connector registration in background (run after Debezium is up)
-(
-    echo "⏳ Waiting for Debezium Connect to be ready before deploying connectors..."
-    for i in {1..120}; do
-        if curl -sf http://localhost:8083/ > /dev/null 2>&1; then
-            echo "✅ Debezium Connect is ready"
-            cd /kafka
-            if [ -f "scripts/deploy/deploy-connectors.sh" ]; then
-                echo "🔌 Deploying connectors..."
-                bash scripts/deploy/deploy-connectors.sh
-                echo "✅ Connectors deployed successfully"
-            fi
-            break
-        fi
-        sleep 2
-    done
-) &
-
 # Run Debezium Connect directly (this blocks and keeps container alive)
 exec /docker-entrypoint.sh start

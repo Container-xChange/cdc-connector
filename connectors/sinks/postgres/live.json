@@ -17,7 +17,7 @@
     "schema.evolution": "basic",
     "quote.identifiers": "false",
 
-    "consumer.override.auto.offset.reset": "latest",
+    "consumer.override.auto.offset.reset": "earliest",
     "consumer.override.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
     "consumer.override.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
     "consumer.override.sasl.jaas.config": "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",

@@ -24,7 +24,10 @@ primary_region = 'fra'
     timeout = "5s"
     path = "/"
 
+[mounts]
+  source = "cdc_data"
+  destination = "/data"
+
 [[vm]]
-  memory = '8gb'
+  memory_mb = 4096
   cpus = 2
-  memory_mb = 2048

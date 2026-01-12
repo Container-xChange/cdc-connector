@@ -10,16 +10,29 @@
     "database.password": "${FINANCE_PASS}",
     "database.server.id": "${FINANCE_SERVER_ID}",
 
-    "topic.prefix": "xchange_finance",
+    "topic.prefix": "xchange_finance_li",
     "database.include.list": "xchange_finance",
 
-    "table.include.list": "${FINANCE_TABLE_ALLOWLIST}",
+    "table.include.list": "xchange_finance.T_LINE_ITEM",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",
+    "snapshot.fetch.size": "10000",
 
+    "incremental.snapshot.chunk.size": "10000",
+    "incremental.snapshot.allow.schema.changes": "true",
+
+    "signal.enabled.channels": "source,kafka",
+    "signal.kafka.topic": "debezium-signals-li",
+    "signal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
+    "signal.kafka.groupId": "debezium-signals-li-group",
+    "signal.consumer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "signal.consumer.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "signal.consumer.sasl.jaas.config": "org.apache.kafka.common.security.${KAFKA_LOGIN_MODULE} required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "signal.consumer.ssl.endpoint.identification.algorithm": "https",
+    "signal.consumer.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
-    "schema.history.internal.kafka.topic": "xchange_finance.schema-history",
+    "schema.history.internal.kafka.topic": "xchange_finance_li.line_item.schema-history",
     "schema.history.internal.store.only.captured.tables.ddl": "true",
     "schema.history.internal.skip.unparseable.ddl": "true",
     "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
@@ -51,7 +64,7 @@
     "database.connectionTimeZone": "UTC",
 
     "heartbeat.interval.ms": "30000",
-    "heartbeat.topics.prefix": "__debezium-heartbeat",
+    "heartbeat.topics.prefix": "__debezium-heartbeat-li",
 
     "event.processing.failure.handling.mode": "warn",
 

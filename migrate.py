@@ -74,8 +74,8 @@ DATABASES = {
             'database': 'LIVE_DB'
         },
         'schema': 'xchangelive',
-        'table_pattern': 'T_%',  # Auto-discover all tables with T_ prefix
-        'include_tables': None  # Exclude pipedrive_id_lookup (no longer used)
+        'table_pattern': None,  # Not using pattern
+        'include_tables': ['T_CARRIER']  # Only migrate T_CARRIER
     }
 }
 
