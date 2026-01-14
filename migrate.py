@@ -49,7 +49,7 @@ BATCH_SIZE = int(os.environ.get('MIGRATION_BATCH_SIZE', '100000'))  # Rows per b
 MAX_WORKERS = int(os.environ.get('MIGRATION_WORKERS', '2'))  # Parallel tables (reduced for memory)
 PREFETCH_SIZE = int(os.environ.get('MIGRATION_PREFETCH', '10000'))  # MySQL fetch size
 LARGE_TABLE_THRESHOLD = int(os.environ.get('LARGE_TABLE_THRESHOLD', '1000000'))  # 1M rows
-CHUNK_WORKERS = int(os.environ.get('CHUNK_WORKERS', '4'))  # Parallel year chunks for large tables
+# Note: CHUNK_WORKERS is now dynamic - automatically matches the number of year chunks
 
 # Database configurations
 DATABASES = {
@@ -290,7 +290,15 @@ def get_table_indexes(mysql_conn, table_name):
         cur.execute(f"SHOW INDEX FROM {table_name}")
         indexes = {}
         for row in cur.fetchall():
-            table, non_unique, key_name, seq_in_index, column_name, collation, cardinality, sub_part, packed, null, index_type, comment, index_comment, ignored = row
+            # Handle variable column counts between MySQL versions
+            # Aurora MySQL 8.x may have different columns than MariaDB
+            if len(row) >= 13:
+                # MySQL 5.7/8.0 format (13+ columns)
+                table, non_unique, key_name, seq_in_index, column_name, collation, cardinality, sub_part, packed, null, index_type, comment, index_comment = row[:13]
+            else:
+                # Older format - unpack what we have
+                table, non_unique, key_name, seq_in_index, column_name = row[:5]
+                index_type = row[10] if len(row) > 10 else 'BTREE'
 
             # Skip PRIMARY - we'll handle it separately
             if key_name == 'PRIMARY':
@@ -700,31 +708,37 @@ def migrate_table_data(mysql_config, pg_schema, table_name):
                 years = get_year_ranges(mysql_conn, table_name, date_column)
 
                 if years and len(years) > 1:
-                    print(f"    {table_name}: Chunking into {len(years)} years ({min(years)}-{max(years)})")
+                    # Dynamic workers: use as many workers as there are year chunks
+                    dynamic_chunk_workers = len(years)
+                    print(f"    {table_name}: Chunking into {len(years)} years ({min(years)}-{max(years)}) with {dynamic_chunk_workers} parallel workers")
 
                     # Close connections - each worker will create their own
                     mysql_conn.close()
                     pg_conn.close()
 
                     # Migrate years in parallel
-                    with ThreadPoolExecutor(max_workers=CHUNK_WORKERS) as executor:
+                    with ThreadPoolExecutor(max_workers=dynamic_chunk_workers) as executor:
                         futures = {
                             executor.submit(migrate_year_chunk, mysql_config, pg_schema, table_name, date_column, year, columns): year
                             for year in years
                         }
 
                         total_processed = 0
+                        completed_years = 0
                         for future in as_completed(futures):
                             year = futures[future]
                             year_result, rows_processed, elapsed = future.result()
                             total_processed += rows_processed
+                            completed_years += 1
+
                             if rows_processed > 0:
                                 rate = rows_processed / elapsed if elapsed > 0 else 0
-                                print(f"      Year {year}: ✅ {rows_processed:,} rows in {elapsed:.1f}s ({rate:.0f} rows/sec)")
+                                progress_pct = 100 * completed_years // len(years)
+                                print(f"      Year {year}: ✅ {rows_processed:,} rows in {elapsed:.1f}s ({rate:.0f} rows/sec) | Overall: {completed_years}/{len(years)} years ({progress_pct}%)")
 
                     overall_elapsed = (datetime.now() - start_time).total_seconds()
                     overall_rate = total_processed / overall_elapsed if overall_elapsed > 0 else 0
-                    print(f"    {table_name}: ✅ {total_processed:,} rows in {overall_elapsed:.1f}s ({overall_rate:.0f} rows/sec)")
+                    print(f"    {table_name}: ✅ {total_processed:,}/{total:,} rows in {overall_elapsed:.1f}s ({overall_rate:.0f} rows/sec)")
                     return True
                 else:
                     print(f"    {table_name}: Only 1 year found, falling back to sequential migration")
@@ -939,7 +953,7 @@ Examples:
   # Migrate single table from finance database with default workers
   python3 migrate.py --database finance --tables T_INVOICE
 
-  # Migrate with custom batch size and threshold
+  # Migrate with custom batch size and threshold (year chunks auto-scale)
   python3 migrate.py --database trading --tables T_DEAL --batch-size 50000 --threshold 500000
         """
     )
@@ -948,7 +962,7 @@ Examples:
         '--database',
         type=str,
         required=True,
-        choices=['trading', 'finance', 'live', 'chat', 'performance', 'concontrol', 'claim', 'concontrol_prod'],
+        choices=['trading', 'finance', 'live', 'chat', 'performance', 'concontrol', 'claim', 'payment'],
         help='Database to migrate'
     )
 
@@ -965,11 +979,6 @@ Examples:
         help=f'Number of parallel workers for table migration (default: {MAX_WORKERS})'
     )
 
-    parser.add_argument(
-        '--chunk-workers',
-        type=int,
-        help=f'Number of parallel workers for year-chunk processing in large tables (default: {CHUNK_WORKERS})'
-    )
 
     parser.add_argument(
         '--batch-size',
@@ -989,12 +998,10 @@ def main():
     args = parse_args()
 
     # Override global settings if provided
-    global MAX_WORKERS, CHUNK_WORKERS, BATCH_SIZE, LARGE_TABLE_THRESHOLD
+    global MAX_WORKERS, BATCH_SIZE, LARGE_TABLE_THRESHOLD
 
     if args.max_workers:
         MAX_WORKERS = args.max_workers
-    if args.chunk_workers:
-        CHUNK_WORKERS = args.chunk_workers
     if args.batch_size:
         BATCH_SIZE = args.batch_size
     if args.threshold:
@@ -1010,7 +1017,6 @@ def main():
     print(f"Performance settings:")
     print(f"  BATCH_SIZE: {BATCH_SIZE}")
     print(f"  MAX_WORKERS: {MAX_WORKERS} (parallel tables)")
-    print(f"  CHUNK_WORKERS: {CHUNK_WORKERS} (parallel year chunks)")
     print(f"  LARGE_TABLE_THRESHOLD: {LARGE_TABLE_THRESHOLD:,} rows")
     print(f"  PREFETCH_SIZE: {PREFETCH_SIZE}")
     print()
@@ -1018,7 +1024,7 @@ def main():
     print(f"  ✅ UNLOGGED tables during data load")
     print(f"  ✅ Deferred index creation")
     print(f"  ✅ Single commit per table")
-    print(f"  ✅ Parallel year-chunking for large tables")
+    print(f"  ✅ Dynamic parallel year-chunking for large tables")
     print(f"  ✅ Non-destructive mode (existing tables/schemas preserved)")
 
     overall_start = datetime.now()
