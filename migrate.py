@@ -61,9 +61,7 @@ DATABASES = {
             'password': 'TRADING_PASS',
             'database': 'TRADING_DB'
         },
-        'schema': 'xchange_trading',
-        'table_pattern': None,  # Disabled - using explicit list
-        'include_tables': []  # Only migrate this table
+        'schema': 'xchange_trading'
     },
     'finance': {
         'mysql': {
@@ -73,9 +71,7 @@ DATABASES = {
             'password': 'FINANCE_PASS',
             'database': 'FINANCE_DB'
         },
-        'schema': 'xchange_finance',
-        # 'table_pattern': 'T_%',  # Auto-discover all tables with T_ prefix
-        'include_tables': ['T_INVOICE_LINE_ITEM']  # Use pattern instead of explicit list
+        'schema': 'xchange_finance'
     },
     'live': {
         'mysql': {
@@ -85,9 +81,57 @@ DATABASES = {
             'password': 'LIVE_PASS',
             'database': 'LIVE_DB'
         },
-        'schema': 'xchangelive',
-        'table_pattern': None,  # Not using pattern
-        'include_tables': None
+        'schema': 'xchangelive'
+    },
+    'chat': {
+        'mysql': {
+            'host': 'CHAT_HOST',
+            'port': 'CHAT_PORT',
+            'user': 'CHAT_USER',
+            'password': 'CHAT_PASS',
+            'database': 'CHAT_DB'
+        },
+        'schema': 'xchange_chat'
+    },
+    'performance': {
+        'mysql': {
+            'host': 'PERFORMANCE_HOST',
+            'port': 'PERFORMANCE_PORT',
+            'user': 'PERFORMANCE_USER',
+            'password': 'PERFORMANCE_PASS',
+            'database': 'PERFORMANCE_DB'
+        },
+        'schema': 'xchange_company_performance'
+    },
+    'concontrol': {
+        'mysql': {
+            'host': 'CONCONTROL_HOST',
+            'port': 'CONCONTROL_PORT',
+            'user': 'CONCONTROL_USER',
+            'password': 'CONCONTROL_PASS',
+            'database': 'CONCONTROL_DB'
+        },
+        'schema': 'xchange_concontrol'
+    },
+    'claim': {
+        'mysql': {
+            'host': 'CLAIM_HOST',
+            'port': 'CLAIM_PORT',
+            'user': 'CLAIM_USER',
+            'password': 'CLAIM_PASS',
+            'database': 'CLAIM_DB'
+        },
+        'schema': 'xchange_claim'
+    },
+    'payment': {
+        'mysql': {
+            'host': 'PAYMENT_HOST',
+            'port': 'PAYMENT_PORT',
+            'user': 'PAYMENT_USER',
+            'password': 'PAYMENT_PASS',
+            'database': 'PAYMENT_DB'
+        },
+        'schema': 'xchange_payment'
     }
 }
 
@@ -846,23 +890,9 @@ def migrate_database(db_name, config, table_filter=None, max_workers=None):
     # Determine workers
     workers = max_workers if max_workers else MAX_WORKERS
 
-    # Discover or use configured tables
-    if table_filter:
-        tables = table_filter
-        print(f"  Using user-specified table list: {len(tables)} tables")
-    elif config.get('include_tables'):
-        tables = config['include_tables']
-        print(f"  Using configured table list: {len(tables)} tables")
-    elif config.get('table_pattern'):
-        tables = discover_tables(config['mysql'], config['table_pattern'])
-        print(f"  Auto-discovered tables matching '{config['table_pattern']}': {len(tables)} tables")
-    else:
-        tables = discover_tables(config['mysql'])
-        print(f"  Auto-discovered all tables: {len(tables)} tables")
-
-    if not tables:
-        print(f"  ⚠️  No tables found to migrate")
-        return True
+    # Use user-specified table list (required)
+    tables = table_filter
+    print(f"  Migrating {len(tables)} table(s)")
 
     # Create schema (does not drop)
     pg_conn = get_pg_conn()
@@ -918,8 +948,8 @@ Examples:
         '--database',
         type=str,
         required=True,
-        choices=['trading', 'finance', 'live'],
-        help='Database to migrate (trading, finance, or live)'
+        choices=['trading', 'finance', 'live', 'chat', 'performance', 'concontrol', 'claim', 'concontrol_prod'],
+        help='Database to migrate'
     )
 
     parser.add_argument(
