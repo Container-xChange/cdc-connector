@@ -1,4 +1,4 @@
-.PHONY: help register-trading register-finance register-live register-sink unregister-all connectors check-health deploy connector-status
+.PHONY: help register-trading register-finance register-live register-sink unregister-sinks restart-sinks unregister-all connectors check-health deploy connector-status
 
 SHELL := /bin/bash
 
@@ -24,12 +24,24 @@ help:
 	@echo "  make register-trading       - Register Trading source + sink"
 	@echo "  make register-finance       - Register Finance source + sink"
 	@echo "  make register-live          - Register Live source + sink"
+	@echo "  make register-chat          - Register Chat source + sink"
+	@echo "  make register-performance   - Register Performance source + sink"
+	@echo "  make register-concontrol    - Register Concontrol source + sink"
+	@echo "  make register-claim         - Register Claim source + sink"
+	@echo "  make register-payment       - Register Payment source + sink"
 	@echo "  make register-sources       - Register all source connectors only"
 	@echo "  make register-sink          - Register all sink connectors only"
 	@echo "  make register-all           - Register all connectors (uses deploy-connectors.sh)"
+	@echo "  make restart-sinks          - Restart all sink connectors (keeps sources running)"
 	@echo "  make unregister-trading     - Delete Trading source + sink"
 	@echo "  make unregister-finance     - Delete Finance source + sink"
 	@echo "  make unregister-live        - Delete Live source + sink"
+	@echo "  make unregister-chat        - Delete Chat source + sink"
+	@echo "  make unregister-performance - Delete Performance source + sink"
+	@echo "  make unregister-concontrol  - Delete Concontrol source + sink"
+	@echo "  make unregister-claim       - Delete Claim source + sink"
+	@echo "  make unregister-payment     - Delete Payment source + sink"
+	@echo "  make unregister-sinks       - Delete all sink connectors only"
 	@echo "  make unregister-all         - Delete all connectors"
 	@echo "  make connectors             - List all connectors and their status"
 	@echo "  make check-health           - Check Debezium health"
@@ -134,7 +146,7 @@ register-live-source:
 
 register-sink-trading:
 	@echo "Registering Postgres Trading sink connector..."
-	@envsubst < connectors/sinks/postgres/trading.json | \
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/trading.json | \
 	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .
@@ -143,7 +155,7 @@ register-sink-trading:
 
 register-sink-finance:
 	@echo "Registering Postgres Finance sink connector..."
-	@envsubst < connectors/sinks/postgres/finance.json | \
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/finance.json | \
 	curl -X POST $$DEBEZIUM_URL/connectors \
 		-H "Content-Type: application/json" \
 		-d @- | jq .
@@ -171,11 +183,121 @@ register-live: register-live-source register-sink-live
 	@echo ""
 	@echo "✓ Live source and sink registered"
 
-register-sink: register-sink-trading register-sink-live
+register-chat-source:
+	@echo "Registering xchange_chat source connector..."
+	@envsubst < connectors/sources/mariadb/chat.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Chat source registered"
+
+register-sink-chat:
+	@echo "Registering Postgres Chat sink connector..."
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/chat.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Chat sink registered"
+
+register-chat: register-chat-source register-sink-chat
+	@echo ""
+	@echo "✓ Chat source and sink registered"
+
+register-performance-source:
+	@echo "Registering xchange_performance source connector..."
+	@envsubst < connectors/sources/mariadb/performance.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Performance source registered"
+
+register-sink-performance:
+	@echo "Registering Postgres Performance sink connector..."
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/performance.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Performance sink registered"
+
+register-performance: register-performance-source register-sink-performance
+	@echo ""
+	@echo "✓ Performance source and sink registered"
+
+register-concontrol-source:
+	@echo "Registering xchange_concontrol source connector..."
+	@envsubst < connectors/sources/mariadb/concontrol.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Concontrol source registered"
+
+register-sink-concontrol:
+	@echo "Registering Postgres Concontrol sink connector..."
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/concontrol.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Concontrol sink registered"
+
+register-concontrol: register-concontrol-source register-sink-concontrol
+	@echo ""
+	@echo "✓ Concontrol source and sink registered"
+
+register-claim-source:
+	@echo "Registering xchange_claim source connector..."
+	@envsubst < connectors/sources/mariadb/claim.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Claim source registered"
+
+register-sink-claim:
+	@echo "Registering Postgres Claim sink connector..."
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/claim.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Claim sink registered"
+
+register-claim: register-claim-source register-sink-claim
+	@echo ""
+	@echo "✓ Claim source and sink registered"
+
+register-payment-source:
+	@echo "Registering xchange_payment source connector..."
+	@envsubst < connectors/sources/mariadb/payment.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Payment source registered"
+
+register-sink-payment:
+	@echo "Registering Postgres Payment sink connector..."
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/payment.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✓ Payment sink registered"
+
+register-payment: register-payment-source register-sink-payment
+	@echo ""
+	@echo "✓ Payment source and sink registered"
+
+register-sink: register-sink-trading register-sink-live register-sink-chat register-sink-performance register-sink-concontrol register-sink-claim register-sink-payment
 	@echo ""
 	@echo "✓ All sink connectors registered"
 
-register-sources: register-trading-source register-finance-source register-live-source
+register-sources: register-trading-source register-finance-source register-live-source register-chat-source register-performance-source register-concontrol-source register-claim-source register-payment-source
 	@echo ""
 	@echo "✓ All source connectors registered"
 
@@ -219,19 +341,80 @@ unregister-live:
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-live 2>/dev/null || true
 	@echo "✓ Live sink deleted"
 
-unregister-sink:
-	@echo "Deleting sink connector..."
+unregister-sinks:
+	@echo "Deleting all sink connectors..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-trading 2>/dev/null || true
+	@echo "✓ Trading sink deleted"
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-finance 2>/dev/null || true
+	@echo "✓ Finance sink deleted"
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-live 2>/dev/null || true
+	@echo "✓ Live sink deleted"
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-chat 2>/dev/null || true
+	@echo "✓ Chat sink deleted"
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-performance 2>/dev/null || true
+	@echo "✓ Performance sink deleted"
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-concontrol 2>/dev/null || true
+	@echo "✓ Concontrol sink deleted"
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-claim 2>/dev/null || true
+	@echo "✓ Claim sink deleted"
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-payment 2>/dev/null || true
+	@echo "✓ Payment sink deleted"
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-connector 2>/dev/null || true
-	@echo "✓ Sink connector deleted"
+	@echo "✓ Generic sink deleted"
+	@echo ""
+	@echo "✅ All sink connectors deleted"
 
-unregister-all: unregister-trading unregister-finance unregister-live unregister-sink
+restart-sinks: unregister-sinks register-sink
+	@echo ""
+	@echo "✅ All sink connectors restarted"
+
+unregister-chat:
+	@echo "Deleting Chat source connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-chat-connector 2>/dev/null || true
+	@echo "✓ Chat source deleted"
+	@echo "Deleting Chat sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-chat 2>/dev/null || true
+	@echo "✓ Chat sink deleted"
+
+unregister-performance:
+	@echo "Deleting Performance source connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-performance-connector 2>/dev/null || true
+	@echo "✓ Performance source deleted"
+	@echo "Deleting Performance sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-performance 2>/dev/null || true
+	@echo "✓ Performance sink deleted"
+
+unregister-concontrol:
+	@echo "Deleting Concontrol source connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-concontrol-connector 2>/dev/null || true
+	@echo "✓ Concontrol source deleted"
+	@echo "Deleting Concontrol sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-concontrol 2>/dev/null || true
+	@echo "✓ Concontrol sink deleted"
+
+unregister-claim:
+	@echo "Deleting Claim source connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-claim-connector 2>/dev/null || true
+	@echo "✓ Claim source deleted"
+	@echo "Deleting Claim sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-claim 2>/dev/null || true
+	@echo "✓ Claim sink deleted"
+
+unregister-payment:
+	@echo "Deleting Payment source connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-payment-connector 2>/dev/null || true
+	@echo "✓ Payment source deleted"
+	@echo "Deleting Payment sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-payment 2>/dev/null || true
+	@echo "✓ Payment sink deleted"
+
+unregister-all: unregister-trading unregister-finance unregister-live unregister-chat unregister-performance unregister-concontrol unregister-claim unregister-payment unregister-sinks
 	@echo ""
 	@echo "Deleting any remaining connectors..."
-	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-trading 2>/dev/null || true
-	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-finance 2>/dev/null || true
-	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-live 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-global 2>/dev/null || true
+	@echo "✓ All remaining connectors deleted"
 	@echo ""
-	@echo "✓ All connectors deleted"
+	@echo "✅ All connectors deleted"
 
 connectors:
 	@echo "Registered connectors:"
@@ -289,4 +472,41 @@ test-incremental-cleanup:
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-trading-connector 2>/dev/null || true
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-trading 2>/dev/null || true
 	@echo "✓ Test connectors deleted"
+
+register-one-schema-exp:
+	@echo "🧪 One-schema experiment: 3 sources → 1 schema (xchange_finance)"
+	@echo "   Tables will be renamed: database__table_name"
+	@echo ""
+	@echo "Registering Trading source..."
+	@envsubst < connectors/sources/mariadb/trading.json | \
+	curl -s -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "Registering Finance source..."
+	@envsubst < connectors/sources/mariadb/finance.json | \
+	curl -s -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "Registering Live source..."
+	@envsubst < connectors/sources/mariadb/live.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "Registering global sink (3 sources → xchange_finance schema)..."
+	@envsubst < connectors/sinks/postgres/global.json | \
+	curl -s -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo ""
+	@echo "✅ 3 sources + 1 global sink registered!"
+	@echo ""
+	@echo "📊 Tables in xchange_finance schema:"
+	@echo "   trading__*      (from xchange_trading)"
+	@echo "   finance__*      (from xchange_finance)"
+	@echo "   live__*         (from xchangelive)"
+	@echo ""
+	@echo "🔍 Check status: make connectors"
 

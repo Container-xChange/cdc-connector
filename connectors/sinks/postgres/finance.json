@@ -4,11 +4,11 @@
     "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
     "tasks.max": "1",
 
-    "connection.url": "${SINK_DB_URL}&currentSchema=xchange_finance_li",
+    "connection.url": "${SINK_DB_URL}&currentSchema=mp_cdc",
     "connection.username": "${SINK_DB_USER}",
     "connection.password": "${SINK_DB_PASSWORD}",
 
-    "topics": "xchange_finance_li.xchange_finance.T_LINE_ITEM",
+    "topics.regex": "xchange_finance\\.xchange_finance\\..*",
 
     "insert.mode": "upsert",
     "primary.key.mode": "record_key",
@@ -17,23 +17,23 @@
     "schema.evolution": "basic",
     "quote.identifiers": "false",
 
-    "consumer.override.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
     "consumer.override.auto.offset.reset": "earliest",
     "consumer.override.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
     "consumer.override.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
     "consumer.override.sasl.jaas.config": "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
     "consumer.override.ssl.endpoint.identification.algorithm": "https",
 
-    "converters": "boolean",
-    "boolean.type": "io.debezium.connector.mysql.converters.TinyIntOneToBooleanConverter",
     "key.converter": "org.apache.kafka.connect.json.JsonConverter",
     "key.converter.schemas.enable": "true",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "true",
 
-    "transforms": "route",
+    "transforms": "route,castBits",
     "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
-    "transforms.route.regex": "xchange_finance_li\\.xchange_finance\\.(.*)",
-    "transforms.route.replacement": "$1"
+    "transforms.route.regex": "xchange_finance\\.xchange_finance\\.(.*)",
+    "transforms.route.replacement": "finance_$1",
+
+    "transforms.castBits.type": "org.apache.kafka.connect.transforms.Cast$Value",
+    "transforms.castBits.spec": "active:boolean"
   }
 }

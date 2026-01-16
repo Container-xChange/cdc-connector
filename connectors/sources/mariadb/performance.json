@@ -1,25 +1,26 @@
 {
-  "name": "mariadb-finance-connector",
+  "name": "mariadb-performance-connector",
   "config": {
     "connector.class": "io.debezium.connector.mysql.MySqlConnector",
     "tasks.max": "1",
 
-    "database.hostname": "${FINANCE_HOST}",
-    "database.port": "${FINANCE_PORT}",
-    "database.user": "${FINANCE_USER}",
-    "database.password": "${FINANCE_PASS}",
-    "database.server.id": "${FINANCE_SERVER_ID}",
+    "database.hostname": "${PERFORMANCE_HOST}",
+    "database.port": "${PERFORMANCE_PORT}",
+    "database.user": "${PERFORMANCE_USER}",
+    "database.password": "${PERFORMANCE_PASS}",
+    "database.server.id": "${PERFORMANCE_SERVER_ID}",
 
-    "topic.prefix": "xchange_finance",
-    "database.include.list": "xchange_finance",
+    "topic.prefix": "xchange_performance",
+    "database.include.list": "xchange_company_performance",
 
-    "table.include.list": "${FINANCE_TABLE_ALLOWLIST}",
+    "table.include.list": "${PERFORMANCE_TABLE_ALLOWLIST}",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",
+    "snapshot.max.threads": "4",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
-    "schema.history.internal.kafka.topic": "xchange_finance.line_item.schema-history",
+    "schema.history.internal.kafka.topic": "xchange_performance.schema-history",
     "schema.history.internal.store.only.captured.tables.ddl": "true",
     "schema.history.internal.skip.unparseable.ddl": "true",
     "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",

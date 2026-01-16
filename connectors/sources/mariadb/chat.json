@@ -1,25 +1,26 @@
 {
-  "name": "mariadb-finance-connector",
+  "name": "mariadb-chat-connector",
   "config": {
     "connector.class": "io.debezium.connector.mysql.MySqlConnector",
     "tasks.max": "1",
 
-    "database.hostname": "${FINANCE_HOST}",
-    "database.port": "${FINANCE_PORT}",
-    "database.user": "${FINANCE_USER}",
-    "database.password": "${FINANCE_PASS}",
-    "database.server.id": "${FINANCE_SERVER_ID}",
+    "database.hostname": "${CHAT_HOST}",
+    "database.port": "${CHAT_PORT}",
+    "database.user": "${CHAT_USER}",
+    "database.password": "${CHAT_PASS}",
+    "database.server.id": "${CHAT_SERVER_ID}",
 
-    "topic.prefix": "xchange_finance",
-    "database.include.list": "xchange_finance",
+    "topic.prefix": "xchange_chat",
+    "database.include.list": "xchange_chat",
 
-    "table.include.list": "${FINANCE_TABLE_ALLOWLIST}",
+    "table.include.list": "${CHAT_TABLE_ALLOWLIST}",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",
+    "snapshot.max.threads": "4",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
-    "schema.history.internal.kafka.topic": "xchange_finance.line_item.schema-history",
+    "schema.history.internal.kafka.topic": "xchange_chat.schema-history",
     "schema.history.internal.store.only.captured.tables.ddl": "true",
     "schema.history.internal.skip.unparseable.ddl": "true",
     "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
