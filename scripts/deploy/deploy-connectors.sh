@@ -3,17 +3,21 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CONNECTORS_DIR="$PROJECT_ROOT/connectors"
+CONNECTORS_DIR="${CONNECTORS_DIR:-$PROJECT_ROOT/connectors}"
 DEBEZIUM_URL="${DEBEZIUM_URL:-http://localhost:8083}"
 
 echo "🔌 Deploying Debezium Connectors..."
 echo "======================================"
 
-# Load environment variables
-if [ -f "$PROJECT_ROOT/env/.env" ]; then
+# Load environment variables (local development only)
+# In production, environment variables should already be exported
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    echo "📋 Loading environment variables from .env (local development)..."
     set -a
-    source "$PROJECT_ROOT/env/.env"
+    source "$PROJECT_ROOT/.env"
     set +a
+else
+    echo "📋 Using environment variables from system (production mode)"
 fi
 
 # Function to wait for Debezium Connect to be ready
@@ -34,35 +38,37 @@ wait_for_debezium() {
 # Function to substitute environment variables in connector JSON
 substitute_vars() {
     local template=$1
-    envsubst < "$template"
+    envsubst '${SINK_DB_URL} ${SINK_DB_USER} ${SINK_DB_PASSWORD} ${KAFKA_SECURITY_PROTOCOL} ${KAFKA_SASL_MECHANISM} ${CONFLUENT_API_KEY} ${CONFLUENT_API_SECRET} ${KAFKA_BOOTSTRAP_SERVERS} ${KAFKA_LOGIN_MODULE} ${TRADING_HOST} ${TRADING_PORT} ${TRADING_USER} ${TRADING_PASS} ${TRADING_SERVER_ID} ${TRADING_TABLE_ALLOWLIST} ${FINANCE_HOST} ${FINANCE_PORT} ${FINANCE_USER} ${FINANCE_PASS} ${FINANCE_SERVER_ID} ${FINANCE_TABLE_ALLOWLIST} ${LIVE_HOST} ${LIVE_PORT} ${LIVE_USER} ${LIVE_PASS} ${LIVE_SERVER_ID} ${LIVE_TABLE_ALLOWLIST} ${CHAT_HOST} ${CHAT_PORT} ${CHAT_USER} ${CHAT_PASS} ${CHAT_SERVER_ID} ${CHAT_TABLE_ALLOWLIST}' < "$template"
 }
 
 # Function to deploy a connector
 deploy_connector() {
     local connector_file=$1
-    local connector_name=$(basename "$connector_file" .json)
+    local connector_name_from_file=$(basename "$connector_file" .json)
 
     echo ""
-    echo "📤 Deploying connector: $connector_name"
+    echo "📤 Deploying connector: $connector_name_from_file"
 
-    # Check if connector already exists
-    if curl -sf "$DEBEZIUM_URL/connectors/$connector_name" > /dev/null 2>&1; then
-        echo "   ⚠️  Connector $connector_name already exists, deleting..."
-        curl -X DELETE "$DEBEZIUM_URL/connectors/$connector_name" 2>/dev/null || true
+    # Substitute environment variables first to get the actual connector name
+    local connector_config=$(substitute_vars "$connector_file")
+    local actual_connector_name=$(echo "$connector_config" | jq -r '.name')
+
+    # Check if connector already exists (using actual name from config)
+    if curl -sf "$DEBEZIUM_URL/connectors/$actual_connector_name" > /dev/null 2>&1; then
+        echo "   ⚠️  Connector $actual_connector_name already exists, deleting..."
+        curl -X DELETE "$DEBEZIUM_URL/connectors/$actual_connector_name" 2>/dev/null || true
         sleep 2
     fi
 
-    # Substitute environment variables and deploy
-    local connector_config=$(substitute_vars "$connector_file")
-
+    # Deploy the connector
     response=$(echo "$connector_config" | curl -X POST "$DEBEZIUM_URL/connectors" \
         -H "Content-Type: application/json" \
         -d @- 2>/dev/null)
 
     if echo "$response" | jq -e '.name' > /dev/null 2>&1; then
-        echo "   ✅ Successfully deployed $connector_name"
+        echo "   ✅ Successfully deployed $actual_connector_name"
     else
-        echo "   ❌ Failed to deploy $connector_name"
+        echo "   ❌ Failed to deploy $actual_connector_name"
         echo "$response" | jq '.' || echo "$response"
         return 1
     fi
@@ -75,6 +81,10 @@ wait_for_debezium
 echo ""
 echo "📥 Deploying Source Connectors (MariaDB -> Kafka)..."
 for connector in "$CONNECTORS_DIR"/sources/mariadb/*.json; do
+    # Skip template file
+    if [[ "$connector" == *"template"* ]]; then
+        continue
+    fi
     if [ -f "$connector" ]; then
         deploy_connector "$connector"
     fi
@@ -87,6 +97,10 @@ sleep 5
 echo ""
 echo "📤 Deploying Sink Connectors (Kafka -> Postgres)..."
 for connector in "$CONNECTORS_DIR"/sinks/postgres/*.json; do
+    # Skip template file
+    if [[ "$connector" == *"template"* ]]; then
+        continue
+    fi
     if [ -f "$connector" ]; then
         deploy_connector "$connector"
     fi
