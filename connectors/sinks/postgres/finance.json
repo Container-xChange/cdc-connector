@@ -34,6 +34,6 @@
     "transforms.route.replacement": "finance_$1",
 
     "transforms.castBits.type": "org.apache.kafka.connect.transforms.Cast$Value",
-    "transforms.castBits.spec": "active:boolean"
+    "transforms.castBits.spec": "active:boolean,offline:boolean,deletable:boolean,is_disputed:boolean,auto_renew:boolean,extended:boolean,latest:boolean,charged:boolean,deleted:boolean,is_migrated:boolean,free_trial:boolean"
   }
 }

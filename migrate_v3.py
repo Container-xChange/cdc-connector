@@ -373,10 +373,9 @@ def create_table(pg_conn, schema_name, table_name, columns, skip_constraints=Fal
         table_exists = cur.fetchone()[0]
 
         if table_exists:
-            print(f"      ⚠️  Table {schema_name}.{table_lower} already exists - skipping creation")
-            # Return primary keys from existing table
-            primary_keys = [col['name'] for col in columns if col['is_primary']]
-            return primary_keys
+            print(f"      ⚠️  Table {schema_name}.{table_lower} already exists - skipping (CDC already connected)")
+            # Return None to signal that table exists and should be completely skipped
+            return None
 
     col_definitions = []
     primary_keys = []
@@ -863,11 +862,18 @@ def migrate_table(mysql_config, pg_schema, table_name, database_name, table_pref
         primary_keys = [col['name'] for col in columns if col['is_primary']]
 
         # Create UNLOGGED table WITHOUT constraints for fast loading
-        create_table(pg_conn, pg_schema, table_name, columns, skip_constraints=True, unlogged=True, table_prefix=table_prefix)
-        print(f"    {table_name}: ✅ Table created as {table_prefix}{table_name.lower()} (UNLOGGED, no indexes)")
+        # Returns None if table already exists (CDC already connected - do not re-migrate)
+        result = create_table(pg_conn, pg_schema, table_name, columns, skip_constraints=True, unlogged=True, table_prefix=table_prefix)
 
         mysql_conn.close()
         pg_conn.close()
+
+        # If table already exists, skip entire migration
+        if result is None:
+            print(f"    {table_name}: ⏭️  Skipped (table exists, CDC already connected)")
+            return True  # Not an error - just already done
+
+        print(f"    {table_name}: ✅ Table created as {table_prefix}{table_name.lower()} (UNLOGGED, no indexes)")
 
         # PHASE 2: Load data (uses fresh connections)
         print(f"    {table_name}: Loading data...")

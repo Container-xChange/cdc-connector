@@ -441,6 +441,62 @@ restart-connector:
 	@echo ""
 	@echo "✓ Connector restarted"
 
+restart-sink-trading:
+	@echo "Restarting Trading sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-trading 2>/dev/null || true
+	@echo "✓ Trading sink deleted"
+	@sleep 2
+	@$(MAKE) register-sink-trading
+
+restart-sink-finance:
+	@echo "Restarting Finance sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-finance 2>/dev/null || true
+	@echo "✓ Finance sink deleted"
+	@sleep 2
+	@$(MAKE) register-sink-finance
+
+restart-sink-live:
+	@echo "Restarting Live sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-live 2>/dev/null || true
+	@echo "✓ Live sink deleted"
+	@sleep 2
+	@$(MAKE) register-sink-live
+
+restart-sink-chat:
+	@echo "Restarting Chat sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-chat 2>/dev/null || true
+	@echo "✓ Chat sink deleted"
+	@sleep 2
+	@$(MAKE) register-sink-chat
+
+restart-sink-performance:
+	@echo "Restarting Performance sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-performance 2>/dev/null || true
+	@echo "✓ Performance sink deleted"
+	@sleep 2
+	@$(MAKE) register-sink-performance
+
+restart-sink-concontrol:
+	@echo "Restarting Concontrol sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-concontrol 2>/dev/null || true
+	@echo "✓ Concontrol sink deleted"
+	@sleep 2
+	@$(MAKE) register-sink-concontrol
+
+restart-sink-claim:
+	@echo "Restarting Claim sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-claim 2>/dev/null || true
+	@echo "✓ Claim sink deleted"
+	@sleep 2
+	@$(MAKE) register-sink-claim
+
+restart-sink-payment:
+	@echo "Restarting Payment sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-payment 2>/dev/null || true
+	@echo "✓ Payment sink deleted"
+	@sleep 2
+	@$(MAKE) register-sink-payment
+
 # Incremental snapshot testing (trading only - uses SAME Kafka topics as regular connector)
 test-incremental-source:
 	@echo "🧪 Registering Trading source with INCREMENTAL snapshot..."
