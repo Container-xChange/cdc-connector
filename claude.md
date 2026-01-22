@@ -9,251 +9,394 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 🚨 CDC PIPELINE ARCHITECTURE - READ THIS FIRST
 
 **DATA FLOW:**
-1. **pgloader** has ALREADY loaded initial snapshots from MariaDB → Postgres (user runs `make migrate`)
-2. **Debezium source connectors** capture ONLY changes after setup (snapshot.mode: "schema_only")
-3. **Debezium sink connectors** write changes from Kafka → Postgres (upsert mode)
+1. **Source Connector** registered first (captures binlog position)
+2. **Python migration** (`migrate_v3.py`) loads initial data from MariaDB → PostgreSQL
+3. **Sink Connector** registered (reads from earliest Kafka offset - ensures no data loss)
+4. **CDC active**: Debezium streams binlog changes → Kafka → PostgreSQL
 
 **CRITICAL RULES:**
-- **NEVER change snapshot.mode from "schema_only"** - Initial data is loaded via pgloader
-- **NEVER suggest running `make migrate`** - Only user can run this
-- Tables already exist in Postgres with primary keys - CDC syncs changes only
-- Source connectors read binlog AFTER connector registration time
-- To test CDC: user must make NEW updates in MariaDB AFTER connectors are registered
+- **Debezium hosted on Fly.io**: https://cdc-connector.fly.dev (NOT local)
+- **Normal operation**: `snapshot.mode: "schema_only"` (source connector)
+- **Adding new tables**: Set `snapshot.mode: "recovery"` temporarily, then revert
+- **Removing tables**: Update topic prefix + schema history topic to force new binlog offset
+- **Restart connectors**: Use `make restart-<database>-source/sink` (preserves state via PUT)
+- **Initial data**: Use `migrate_v3.py`, NOT pgloader (legacy)
 
 ---
 
-## 🚨 BEFORE DOING ANYTHING - MANDATORY CHECKS
-
-**ALWAYS CHECK EXISTING FILES FIRST:**
-1. Run `ls -la` in relevant directories
-2. Check `Makefile` for existing targets (269 lines of commands)
-3. Check `.env` for environment variables
-4. Check `bootstrap/pgloader/` for migration scripts
-5. Check `connectors/` for connector configs
-6. Check `scripts/deploy/` for deployment scripts
-
-**NEVER CREATE NEW FILES WITHOUT CHECKING IF THEY ALREADY EXIST**
-
----
-
-## Existing Project Structure (DO NOT DUPLICATE)
+## 🚨 CURRENT PROJECT STRUCTURE
 
 ```
-├── Makefile                              # 269 lines - ALL CDC operations
-├── .env                                  # Environment variables (3 MariaDB sources)
-├── docker-compose.yml                    # Postgres service definition
-├── bootstrap/
-│   ├── Dockerfile                        # pgloader image
-│   ├── pgloader/
-│   │   ├── load-all.sh                   # Master migration script (EXISTS!)
-│   │   ├── finance.load                  # Finance migration config
-│   │   ├── finance.processed.load        # Processed version
-│   │   ├── trading.load                  # Trading migration config
-│   │   └── main_app.load                 # Main app migration config
-│   └── sql/
-│       └── add-primary-keys.sql          # Primary key creation script
+├── Makefile                              # Connector management commands
+├── .env                                  # Environment variables (8 databases)
+├── README.md                             # Complete user documentation
+├── migrate_v3.py                         # Python migration script (CURRENT)
 ├── connectors/
-│   ├── Dockerfile                        # Debezium image
 │   ├── sources/mariadb/
 │   │   ├── trading.json                  # Trading source connector
 │   │   ├── finance.json                  # Finance source connector
-│   │   └── live.json                     # Live source connector
+│   │   ├── live.json                     # Live source connector
+│   │   ├── chat.json                     # Chat source connector
+│   │   ├── performance.json              # Performance source connector
+│   │   ├── concontrol.json               # Concontrol source connector
+│   │   ├── claim.json                    # Claim source connector
+│   │   └── payment.json                  # Payment source connector
 │   └── sinks/postgres/
-│       ├── sink.json                     # Generic sink
-│       ├── trading.json                  # Trading sink
-│       ├── finance.json                  # Finance sink
-│       └── live.json                     # Live sink
-└── scripts/
-    └── deploy/
-        └── deploy-connectors.sh          # Connector deployment script (EXISTS!)
+│       ├── trading.json                  # Trading sink connector
+│       ├── finance.json                  # Finance sink connector
+│       ├── live.json                     # Live sink connector
+│       ├── chat.json                     # Chat sink connector
+│       ├── performance.json              # Performance sink connector
+│       ├── concontrol.json               # Concontrol sink connector
+│       ├── claim.json                    # Claim sink connector
+│       └── payment.json                  # Payment sink connector
+└── bootstrap/                            # LEGACY - pgloader (not used)
 ```
 
 ---
 
-## Available Makefile Commands (USE THESE - DON'T RECREATE)
+## Available Makefile Commands
 
-**Setup:**
-- `make build-debezium` - Build Debezium image
-- `make build-pgloader` - Build pgloader image
-- `make start` - Start CDC stack (Postgres + Debezium)
-- `make stop` - Stop CDC stack
-- `make restart` - Restart CDC stack
-- `make clean` - Stop and remove all containers/volumes
+**Registration:**
+- `make register-<database>-source` - Register source connector
+- `make register-<database>-sink` - Register sink connector
 
-**Migration:**
-- `make migrate` - Run pgloader migration (uses existing Dockerfile + load-all.sh)
-- `make add-pks` - Add primary keys to tables
+**Restart (Preserves Connection - Uses PUT):**
+- `make restart-<database>-source` - Update source config without losing binlog position
+- `make restart-<database>-sink` - Update sink config without losing Kafka offset
 
-**Connectors:**
-- `make register-trading` - Register trading source
-- `make register-finance` - Register finance source
-- `make register-live` - Register live source
-- `make register-sink` - Register Postgres sink
-- `make register-all` - Register all connectors (uses scripts/deploy/deploy-connectors.sh)
-- `make unregister-all` - Delete all connectors
-- `make connectors` - List all connectors and status
+**Unregister:**
+- `make unregister-<database>-source` - Delete source connector
+- `make unregister-<database>-sink` - Delete sink connector
 
 **Monitoring:**
-- `make logs-debezium` - Tail Debezium logs
-- `make logs-postgres` - Tail Postgres logs
-- `make check-health` - Check service health
-- `make connector-status C=<name>` - Get connector status
+- `make connectors` - List all connectors and their status
+- `make connector-status C=<name>` - Get detailed connector status with error messages
 
-**Full Deployment:**
-- `make deploy` - Build + start + migrate + add PKs + register connectors
+**Available databases**: `trading`, `finance`, `live`, `chat`, `performance`, `concontrol`, `claim`, `payment`
+
+**Example:**
+```bash
+make connector-status C=mariadb-trading-connector
+make connector-status C=postgres-sink-concontrol
+```
 
 ---
 
-## Data Sources (FROM .env)
+## Common User Workflows
 
-### 3 MariaDB Instances:
-1. **Trading** (`xchange_trading`) - 14 tables
-   - Host: xc-trading.covl02ovmomq.eu-central-1.rds.amazonaws.com
-   - Tables: T_CARRIER, T_DEAL, T_DEAL_*, T_LOCATION, T_USER, V_ABSTRACT_OFFER*
+### 1. NORMAL WORKFLOW - New Database Setup
 
-2. **Finance** (`xchange_finance`) - 8 tables
-   - Host: xc-finance.covl02ovmomq.eu-central-1.rds.amazonaws.com
-   - Tables: T_ACCOUNT, T_INSURANCE_UNIT, T_INVOICE, T_LEASING_*, T_MEMBERSHIP_*
+When user wants to set up CDC for a new database:
 
-3. **Live** (`xchangelive`) - 15 tables
-   - Host: 172.31.23.19
-   - Tables: pipedrive_id_lookup, T_CARRIER, T_COMPANY_*, T_DEPOT_MAPPER, T_LOCATION, T_REQUEST*
+**Step 1: Verify connector configs exist**
+- Check `connectors/sources/mariadb/<database>.json` exists
+- Check `connectors/sinks/postgres/<database>.json` exists
+- Verify `snapshot.mode: "schema_only"` in source config
 
-### Target:
-- **Postgres** (`cdc_pipeline`)
-  - Local: localhost:5432
-  - Container: postgres:5432
+**Step 2: Suggest workflow**
+```bash
+# 1. Register source connector (establishes binlog position)
+make register-<database>-source
 
-### Kafka:
-- AWS MSK cluster (3 brokers)
-- Schema Registry: http://schema-registry-non-prod.eks
+# 2. Migrate initial data
+python3 migrate_v3.py --database <database> --tables all
 
-### Debezium Connect:
-- **Production**: Deployed on Fly.io (https://cdc-connector.fly.dev)
-- **Not local**: No docker-compose for Debezium - uses remote instance
-- Connector registration happens via Makefile commands that curl to DEBEZIUM_URL
+# 3. Register sink connector (reads from earliest Kafka offset)
+make register-<database>-sink
+```
+
+**Step 3: Verify**
+```bash
+make connector-status C=mariadb-<database>-connector
+make connector-status C=postgres-sink-<database>
+```
+
+---
+
+### 2. ADDING NEW TABLES to Existing Database
+
+When user adds a table to allowlist in `.env`:
+
+**Step 1: Check current config**
+- Read `connectors/sources/mariadb/<database>.json`
+- Verify current `snapshot.mode` setting
+
+**Step 2: Update source config**
+- Change `snapshot.mode: "schema_only"` → `"recovery"`
+- Verify `table.include.list` references the env var with new tables
+
+**Step 3: Suggest workflow**
+```bash
+# 1. Migrate the new table
+python3 migrate_v3.py --database <database> --tables T_NEW_TABLE
+
+# 2. Restart connectors (preserves binlog position)
+make restart-<database>-source
+make restart-<database>-sink
+
+# 3. Monitor for completion
+make connector-status C=mariadb-<database>-connector
+
+# 4. After snapshot completes, revert snapshot.mode to "schema_only"
+# Edit connectors/sources/mariadb/<database>.json
+# Then: make restart-<database>-source
+```
+
+**What to check:**
+- Source connector should show "RUNNING" state
+- Sink connector should show "RUNNING" state
+- No errors in connector status
+
+---
+
+### 3. REMOVING TABLES from Allowlist
+
+When user removes tables from allowlist:
+
+**Step 1: Identify required changes**
+- Schema history topic needs versioning (force new binlog offset)
+- Topic prefix needs versioning (create new Kafka topics)
+- Topics regex in sink needs updating
+
+**Step 2: Update connector configs**
+
+Source connector (`connectors/sources/mariadb/<database>.json`):
+```json
+{
+  "config": {
+    "topic.prefix": "xchange_trading_v2",
+    "schema.history.internal.kafka.topic": "xchange_trading-v2.schema-history",
+    "table.include.list": "${TRADING_TABLE_ALLOWLIST}"
+  }
+}
+```
+
+Sink connector (`connectors/sinks/postgres/<database>.json`):
+```json
+{
+  "config": {
+    "topics.regex": "xchange_trading_v2\\.xchange_trading\\..*"
+  }
+}
+```
+
+**Step 3: Suggest workflow**
+```bash
+# 1. Update .env to remove tables from allowlist
+# 2. Edit source connector config (topic.prefix + schema.history topic)
+# 3. Edit sink connector config (topics.regex)
+# 4. Restart both connectors
+make restart-<database>-source
+make restart-<database>-sink
+```
+
+**What to check:**
+- New Kafka topics with new prefix are created
+- Old topics still exist (not deleted automatically)
+- Connectors reading from correct topics
+
+**Example reference**: `connectors/sources/mariadb/concontrol.json` uses `topic.prefix: "xchange_concontrol_v4"`
+
+---
+
+### 4. DEBUGGING Connector Issues
+
+When user reports connector errors:
+
+**Step 1: Check connector status**
+```bash
+make connectors                           # Overview of all connectors
+make connector-status C=<connector-name>  # Detailed error messages
+```
+
+**Step 2: Common issues to look for**
+
+**Type mismatch errors (bit(1) → boolean):**
+- Check sink connector for Cast transform
+- Should have: `"transforms": "route,castBits"`
+- Should have: `"transforms.castBits.type": "org.apache.kafka.connect.transforms.Cast$Value"`
+- Should have: `"transforms.castBits.spec": "active:boolean,deleted:boolean,..."`
+- **IMPORTANT**: If `castBits` config exists but not in transforms list, transform won't apply
+
+**Source connector not capturing changes:**
+- Verify `snapshot.mode: "schema_only"` (unless adding new tables)
+- Check binlog position hasn't expired (MariaDB retention)
+- Verify tables are in allowlist env var
+
+**Sink connector failing:**
+- Check `topics.regex` matches source `topic.prefix`
+- Verify primary keys exist in target PostgreSQL tables
+- Check schema compatibility between Kafka and PostgreSQL
+
+**Step 3: Suggest fixes**
+
+For type mismatches:
+```json
+// Edit connectors/sinks/postgres/<database>.json
+{
+  "transforms": "route,castBits",  // Add castBits to the chain
+  "transforms.castBits.type": "org.apache.kafka.connect.transforms.Cast$Value",
+  "transforms.castBits.spec": "field1:boolean,field2:boolean"
+}
+```
+
+Then restart:
+```bash
+make restart-<database>-sink
+```
+
+---
+
+## Configuration File Locations & Settings
+
+### Source Connector (`connectors/sources/mariadb/<database>.json`)
+
+**Key settings:**
+```json
+{
+  "name": "mariadb-<database>-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+
+    // Database connection
+    "database.hostname": "${<DATABASE>_HOST}",
+    "database.user": "${<DATABASE>_USER}",
+    "database.password": "${<DATABASE>_PASS}",
+
+    // Snapshot mode
+    "snapshot.mode": "schema_only",        // Normal operation
+    "snapshot.mode": "recovery",           // When adding new tables
+
+    // Table filtering
+    "table.include.list": "${<DATABASE>_TABLE_ALLOWLIST}",
+
+    // Kafka topics
+    "topic.prefix": "xchange_<database>",
+    "schema.history.internal.kafka.topic": "xchange_<database>.schema-history",
+
+    // Type conversions
+    "converters": "boolean",
+    "boolean.type": "io.debezium.connector.mysql.converters.TinyIntOneToBooleanConverter"
+  }
+}
+```
+
+### Sink Connector (`connectors/sinks/postgres/<database>.json`)
+
+**Key settings:**
+```json
+{
+  "name": "postgres-sink-<database>",
+  "config": {
+    "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
+
+    // Database connection
+    "connection.url": "${SINK_DB_URL}&currentSchema=mp_cdc",
+    "connection.username": "${SINK_DB_USER}",
+    "connection.password": "${SINK_DB_PASSWORD}",
+
+    // Topic matching
+    "topics.regex": "xchange_<database>\\.<database>\\..*",
+
+    // Upsert mode
+    "insert.mode": "upsert",
+    "primary.key.mode": "record_key",
+    "delete.enabled": "true",
+
+    // Schema evolution
+    "schema.evolution": "basic",
+
+    // Kafka consumer
+    "consumer.override.auto.offset.reset": "earliest",
+
+    // Transforms
+    "transforms": "route,castBits",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": "xchange_<database>\\.<database>\\.(.*)",
+    "transforms.route.replacement": "<schema>_$1",
+
+    // Type casting (if needed for bit(1) fields)
+    "transforms.castBits.type": "org.apache.kafka.connect.transforms.Cast$Value",
+    "transforms.castBits.spec": "active:boolean,deleted:boolean"
+  }
+}
+```
+
+---
+
+## When User Asks For...
+
+### "Set up CDC for <database>"
+1. Check if source/sink configs exist in `connectors/`
+2. Suggest the 3-step workflow (register source → migrate → register sink)
+3. Provide monitoring commands
+
+### "Add a new table to <database>"
+1. Check current `snapshot.mode` in source config
+2. Suggest changing to `"recovery"`, migrating, restarting, then reverting
+3. Remind to update `.env` allowlist first
+
+### "Remove a table from <database>"
+1. Explain need to version topic prefix and schema history
+2. Show example changes to source and sink configs
+3. Suggest restart workflow
+
+### "Why is connector failing?"
+1. Suggest `make connector-status C=<name>` to see error
+2. Look for common patterns (type mismatch, topic regex, primary keys)
+3. Suggest specific fixes based on error
+
+### "How do I check connector health?"
+1. `make connectors` for overview
+2. `make connector-status C=<name>` for details
+3. Check both source and sink connectors
 
 ---
 
 ## CRITICAL RULES - READ CAREFULLY
 
-### 🚫 DO NOT CREATE:
-1. **New migration scripts** - Use `bootstrap/pgloader/load-all.sh`
-2. **New deployment scripts** - Use `scripts/deploy/deploy-connectors.sh`
-3. **New Makefile targets** - Check existing 40+ targets first
-4. **New Dockerfiles** - `connectors/Dockerfile` and `bootstrap/Dockerfile` exist
-5. **New connector configs** - 7 JSON files already configured
-6. **Duplicate .env files** - Single `.env` at root with all configs
+### 🚫 DO NOT:
+1. **Suggest `make migrate`** - Legacy pgloader, use `migrate_v3.py` instead
+2. **Change `snapshot.mode` permanently** - Only `"recovery"` temporarily for new tables
+3. **Create new connector configs** - 8 databases already configured
+4. **Suggest local Debezium** - Hosted on Fly.io
+5. **Use DELETE+POST for restart** - Use `make restart-*` (preserves state via PUT)
 
 ### ✅ DO:
-1. **ALWAYS run `ls -la` before creating any file**
-2. **Check Makefile** before suggesting new commands
-3. **Read existing scripts** before writing new ones
-4. **Use `make <target>`** instead of raw docker/curl commands
-5. **Edit existing files** instead of creating new ones
-6. **Ask user** if unclear whether something exists
-
-### 📝 Common Tasks - USE EXISTING TOOLS:
-
-**Migration?** → `make migrate` (uses load-all.sh)
-**Deploy connectors?** → `make register-all` (uses deploy-connectors.sh)
-**Check status?** → `make connectors` or `make check-health`
-**View logs?** → `make logs-debezium` or `make logs-postgres`
-**Full setup?** → `make deploy`
+1. **Check README.md first** - Contains complete workflow documentation
+2. **Use `make` commands** - Don't suggest raw curl commands
+3. **Verify connector configs** - Read JSON files before suggesting changes
+4. **Check transforms chain** - Ensure `castBits` is in `"transforms"` list if config exists
+5. **Monitor connector status** - Use `make connector-status` to verify changes
 
 ---
 
-## Performance Requirements
+## Environment Variables (FROM .env)
 
-- **Before creating files**: Check if they exist (ls, find, glob)
-- **Before suggesting commands**: Check Makefile
-- **Before writing scripts**: Check bootstrap/ and scripts/
-- **Minimize tool calls**: Batch reads/checks when possible
-- **No duplicates**: Never create what already exists
+**8 MariaDB Source Databases:**
+1. `trading` - xchange_trading
+2. `finance` - xchange_finance
+3. `live` - xchangelive
+4. `chat` - xchange_chat
+5. `performance` - xchange_performance
+6. `concontrol` - xchange_concontrol
+7. `claim` - xchange_claim
+8. `payment` - xchange_payment
 
----
+**PostgreSQL Target:**
+- `SINK_DB_URL` - JDBC connection string
+- `SINK_DB_USER` - Username
+- `SINK_DB_PASSWORD` - Password
+- Target schema: `mp_cdc`
 
-## Connector Configuration Architecture
+**Kafka (Confluent Cloud):**
+- `KAFKA_BOOTSTRAP_SERVERS`
+- `CONFLUENT_API_KEY`
+- `CONFLUENT_API_SECRET`
 
-**Source Connectors** (connectors/sources/mariadb/):
-- `trading.json`, `finance.json`, `live.json`
-- Use environment variable substitution via `envsubst`
-- Capture binlog changes from MariaDB
-- Key settings:
-  - `snapshot.mode: "schema_only"` - No data snapshots
-  - `table.include.list` - Explicit table allowlist from env vars
-  - `topic.prefix` - Kafka topic namespace (e.g., "xchange_trading")
-
-**Sink Connectors** (connectors/sinks/postgres/):
-- `trading.json`, `finance.json`, `live.json`
-- Use JDBC sink connector to write to Postgres
-- Key settings:
-  - `insert.mode: "upsert"` - Updates existing records
-  - `topics.regex` - Matches Kafka topics (e.g., `xchange_trading\.xchange_trading\..*`)
-  - `transforms.route` - Routes to correct schema/table
-
-**Deployment**:
-- Connectors deployed via `scripts/deploy/deploy-connectors.sh`
-- Script handles env var substitution and registration
-- All operations accessible via Makefile commands
-
----
-
-## Troubleshooting & Operations
-
-For detailed operational procedures, see `docs/CDC-OPS.md`:
-- Schema change handling
-- Table addition/removal
-- Connector lifecycle management
-- Common debugging procedures
-- Performance tuning guidelines
-
-**Quick debugging**:
-- Check connector status: `make connector-status C=<name>`
-- View all connectors: `make connectors`
-- Check Debezium health: `make check-health`
-
----
-
-## Quick Reference
-
-**Start everything:**
-```bash
-make deploy
-```
-
-**Check what's running:**
-```bash
-make check-health
-make connectors
-```
-
-**Restart services:**
-```bash
-make restart
-```
-
-**Clean slate:**
-```bash
-make clean
-```
-
----
-
-## Testing CDC Changes
-
-**Important**: Changes must be made in MariaDB AFTER connectors are registered to be captured.
-
-**Test workflow**:
-1. Register connectors: `make register-all`
-2. Make changes in MariaDB (INSERT/UPDATE/DELETE)
-3. Verify in Kafka topics (check Debezium logs)
-4. Verify in Postgres target database
-
-**Do not**:
-- Change data before connectors are registered (won't be captured)
-- Expect initial data to flow through CDC (use pgloader for initial load)
-- Test with local MariaDB (use actual AWS RDS instances from .env)
+**Debezium:**
+- `DEBEZIUM_URL=https://cdc-connector.fly.dev`
 
 ---
 
@@ -269,4 +412,5 @@ make clean
 - Do what has been asked; nothing more, nothing less
 - Use existing Makefile commands instead of raw docker/curl commands
 - Check `.env` for all configuration values
-- Respect the two-phase architecture: pgloader for initial load, CDC for changes only
+- Check README.md for complete workflow documentation before suggesting workflows
+- Verify connector configs before suggesting changes

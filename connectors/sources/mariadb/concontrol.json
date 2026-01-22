@@ -10,7 +10,7 @@
     "database.password": "${CONCONTROL_PASS}",
     "database.server.id": "${CONCONTROL_SERVER_ID}",
 
-    "topic.prefix": "xchange_concontrol_v4",
+    "topic.prefix": "xchange_concontrol",
     "database.include.list": "xchange_concontrol",
 
     "table.include.list": "${CONCONTROL_TABLE_ALLOWLIST}",
@@ -20,7 +20,7 @@
     "snapshot.max.threads": "4",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
-    "schema.history.internal.kafka.topic": "xchange_concontrol_v4.schema-history",
+    "schema.history.internal.kafka.topic": "xchange_concontrol.schema-history",
     "schema.history.internal.store.only.captured.tables.ddl": "true",
     "schema.history.internal.skip.unparseable.ddl": "true",
     "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
@@ -72,8 +72,7 @@
 
     "transforms": "unwrap",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
-    "transforms.unwrap.drop.tombstones": "false",
-    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.delete.handling.mode": "none",
     "transforms.unwrap.add.fields": "op,source.ts_ms,source.db,source.table"
   }
 }

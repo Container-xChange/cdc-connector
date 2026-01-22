@@ -1,196 +1,332 @@
-# CDC Pipeline - Database Migration
+# CDC Pipeline - Debezium Change Data Capture
 
 ## Overview
 
-This project provides two methods for migrating data from MariaDB instances to PostgreSQL:
+This project implements a CDC (Change Data Capture) pipeline using Debezium connectors to replicate data from MariaDB instances to PostgreSQL in real-time.
 
-1. **pgloader** (legacy) - Bulk migration using pgloader configuration files
-2. **migrate.py** (recommended) - Python-based migration with parallel processing and incremental support
+**Architecture:**
+- **Debezium Connectors**: Hosted on Fly.io (https://cdc-connector.fly.dev)
+- **Source**: MariaDB databases (8 separate instances)
+- **Target**: PostgreSQL database (mp_cdc schema)
+- **Message Broker**: Confluent Kafka
+- **Initial Data Migration**: Python script (migrate_v3.py)
 
-## Migration Tools
+## Quick Start
 
-### 1. Python Migration Script (Recommended)
+### 1. Environment Setup
 
-`migrate.py` is a custom Python tool with advanced features:
+Update `.env` file with your database credentials:
+
+```bash
+# MariaDB Sources
+TRADING_HOST=...
+TRADING_USER=...
+TRADING_PASS=...
+# ... (repeat for finance, live, chat, performance, concontrol, claim, payment)
+
+# PostgreSQL Target
+SINK_DB_URL=jdbc:postgresql://...
+SINK_DB_USER=...
+SINK_DB_PASSWORD=...
+
+# Kafka
+KAFKA_BOOTSTRAP_SERVERS=...
+CONFLUENT_API_KEY=...
+CONFLUENT_API_SECRET=...
+
+# Debezium
+DEBEZIUM_URL=https://cdc-connector.fly.dev
+```
+
+### 2. Normal Workflow (New Database Setup)
+
+**Step 1: Register Source Connector**
+```bash
+make register-<database>-source
+```
+
+**Step 2: Migrate Initial Data**
+```bash
+python3 migrate_v3.py --database <database> --tables all
+```
+
+**Step 3: Register Sink Connector**
+```bash
+make register-<database>-sink
+```
+
+This establishes the CDC pipeline. The sink reads from the earliest offset, ensuring no data is missed between migration and CDC activation.
+
+**Available databases**: `trading`, `finance`, `live`, `chat`, `performance`, `concontrol`, `claim`, `payment`
+
+### 3. Adding New Tables to Existing Database
+
+When you add a table to the allowlist in `.env`:
+
+**Step 1: Update Source Config**
+
+Edit `connectors/sources/mariadb/<database>.json`:
+```json
+{
+  "config": {
+    "snapshot.mode": "recovery",
+    ...
+  }
+}
+```
+
+**Step 2: Migrate the New Table**
+```bash
+python3 migrate_v3.py --database <database> --tables T_NEW_TABLE
+```
+
+**Step 3: Restart Source and Sink**
+```bash
+make restart-<database>-source
+make restart-<database>-sink
+```
+
+The source will snapshot the new table while continuing to stream changes from existing tables.
+
+**Step 4: Revert to schema_only**
+
+After the new table is synced, revert:
+```json
+{
+  "config": {
+    "snapshot.mode": "schema_only",
+    ...
+  }
+}
+```
+
+Then restart again:
+```bash
+make restart-<database>-source
+```
+
+### 4. Removing Tables from Allowlist
+
+When removing tables from the allowlist:
+
+**Step 1: Update Environment Variable**
+
+Remove table from `.env`:
+```bash
+TRADING_TABLE_ALLOWLIST=xchange_trading.T_DEAL,xchange_trading.T_CARRIER
+# Removed: T_OLD_TABLE
+```
+
+**Step 2: Update Source Connector**
+
+Edit `connectors/sources/mariadb/<database>.json`:
+```json
+{
+  "config": {
+    "table.include.list": "${TRADING_TABLE_ALLOWLIST}",
+    "schema.history.internal.kafka.topic": "xchange_trading-v2.schema-history"
+  }
+}
+```
+
+Change the schema history topic name (e.g., add `-v2`, `-v3`) to force Debezium to read from a new binlog offset.
+
+**Step 3: Update Sink Connector**
+
+Edit `connectors/sinks/postgres/<database>.json`:
+```json
+{
+  "config": {
+    "topics.regex": "xchange_trading_v2\\.xchange_trading\\..*"
+  }
+}
+```
+
+Update the topic regex to match the new topic prefix.
+
+**Step 4: Update Source Topic Prefix**
+
+Edit `connectors/sources/mariadb/<database>.json`:
+```json
+{
+  "config": {
+    "topic.prefix": "xchange_trading_v2"
+  }
+}
+```
+
+**Step 5: Restart Connectors**
+```bash
+make restart-<database>-source
+make restart-<database>-sink
+```
+
+**Example**: See `connectors/sources/mariadb/concontrol.json` and `connectors/sinks/postgres/concontrol.json`
+
+## Available Commands
+
+### Registration
+```bash
+make register-<database>-source    # Register source connector
+make register-<database>-sink      # Register sink connector
+```
+
+### Restart (Preserves Connection)
+```bash
+make restart-<database>-source     # Update source config without losing binlog position
+make restart-<database>-sink       # Update sink config without losing offset
+```
+
+### Unregister
+```bash
+make unregister-<database>-source  # Delete source connector
+make unregister-<database>-sink    # Delete sink connector
+```
+
+### Monitoring
+```bash
+make connectors                    # List all connectors and their status
+make connector-status C=<name>     # Get detailed status and error messages
+```
+
+**Example:**
+```bash
+make connector-status C=mariadb-trading-connector
+make connector-status C=postgres-sink-trading
+```
+
+## Migration Script (migrate_v3.py)
 
 **Features:**
-- ✅ Parallel table migration with configurable workers
-- ✅ Automatic year-based chunking for large tables (>1M rows)
-- ✅ Non-destructive mode (preserves existing schemas/tables)
-- ✅ Handles all type conversions (bit(1) → boolean, etc.)
-- ✅ Selective table migration
-- ✅ UNLOGGED tables during load, then converts to LOGGED
-- ✅ Deferred index creation for optimal performance
+- Parallel table migration
+- Automatic type conversions (bit(1) → boolean, etc.)
+- Year-based chunking for large tables
+- UNLOGGED tables during load, then converts to LOGGED
+- Deferred index creation
 
 **Usage:**
 
 ```bash
-# Migrate specific tables from trading database with 5 parallel workers
-python3 migrate.py --database trading \
-  --tables T_ABSTRACT_OFFER,T_DEAL,T_CARRIER \
-  --max-workers 5
+# Migrate all tables
+python3 migrate_v3.py --database trading --tables all
 
-# Migrate single table from finance database (default 2 workers)
-python3 migrate.py --database finance \
-  --tables T_INVOICE
+# Migrate specific tables
+python3 migrate_v3.py --database finance --tables T_INVOICE,T_ACCOUNT
 
-# Migrate with custom batch size and large table threshold
-python3 migrate.py --database trading \
+# Migrate with custom settings
+python3 migrate_v3.py --database trading \
   --tables T_DEAL \
-  --batch-size 50000 \
-  --threshold 500000 \
-  --max-workers 4 \
-  --chunk-workers 6
-
-# Migrate multiple tables from live database
-python3 migrate.py --database live \
-  --tables T_CARRIER,T_LOCATION
-```
-
-**Command-Line Parameters:**
-
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| `--database` | Yes | - | Database to migrate: `trading`, `finance`, or `live` |
-| `--tables` | Yes | - | Comma-separated list of tables to migrate |
-| `--max-workers` | No | 2 | Number of parallel workers for table migration |
-| `--chunk-workers` | No | 4 | Number of parallel workers for year-chunk processing in large tables |
-| `--batch-size` | No | 100000 | Rows per batch |
-| `--threshold` | No | 1000000 | Row threshold for triggering large table chunking |
-
-**Environment Variables (Alternative Configuration):**
-
-```bash
-export MIGRATION_BATCH_SIZE=20000
-export MIGRATION_WORKERS=8
-export CHUNK_WORKERS=6
-export LARGE_TABLE_THRESHOLD=500000
-```
-
-**How It Works:**
-
-1. **Schema Creation** - Creates schema if not exists (non-destructive)
-2. **Table Creation** - Creates UNLOGGED tables without indexes for fast loading
-3. **Data Migration** - Uses PostgreSQL COPY protocol for bulk inserts
-   - Small tables: Sequential migration
-   - Large tables (>threshold): Parallel year-based chunking
-4. **Index Creation** - Converts to LOGGED and adds all indexes/constraints
-
-**Large Table Optimization:**
-
-Tables exceeding the threshold (default 1M rows) are automatically split into year-based chunks and processed in parallel:
-- Finds suitable date/timestamp column (prioritizes `created_date`, `created_at`)
-- Splits data by year
-- Processes each year chunk in parallel (up to `--chunk-workers` threads)
-- Other tables continue migrating concurrently (up to `--max-workers` total)
-
-### 2. pgloader (Legacy)
-
-Located in `bootstrap/pgloader/` directory.
-
-**Files:**
-- `load-all.sh` - Main script that loads all databases sequentially
-- `main_app.load` - Configuration for main application database
-- `trading.load` - Configuration for trading database
-- `finance.load` - Configuration for finance database
-
-**Known Issues (Resolved):**
-
-The finance database has 19 tables with MariaDB-specific sequence defaults in the form:
-```sql
-DEFAULT nextval(`xchange_finance`.`seq_table_name`)
-```
-
-This was resolved by adding these CAST rules to `finance.load`:
-```
-CAST type int to int drop default drop typemod,
-     type bigint to bigint drop default drop typemod
-```
-
-**Usage:**
-
-```bash
-# Load all databases via Makefile
-make migrate
-
-# Or manually with load-all.sh
-cd bootstrap/pgloader
-./load-all.sh
-
-# Or individual databases
-source .env
-cd bootstrap/pgloader
-
-# Trading
-LOAD_FILE=$(envsubst < trading.load)
-docker compose run --rm -T pgloader pgloader --verbose "$LOAD_FILE"
-
-# Finance
-LOAD_FILE=$(envsubst < finance.load)
-docker compose run --rm -T pgloader pgloader --verbose "$LOAD_FILE"
-```
-
-## Environment Variables
-
-Required in `.env`:
-
-**MariaDB Sources:**
-- `TRADING_HOST`, `TRADING_PORT`, `TRADING_USER`, `TRADING_PASS`, `TRADING_DB` - Trading database
-- `FINANCE_HOST`, `FINANCE_PORT`, `FINANCE_USER`, `FINANCE_PASS`, `FINANCE_DB` - Finance database
-- `LIVE_HOST`, `LIVE_PORT`, `LIVE_USER`, `LIVE_PASS`, `LIVE_DB` - Live database
-
-**PostgreSQL Target:**
-- `PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASS`, `PG_DB` - PostgreSQL target database
-
-## Database Schemas
-
-**Source Databases:**
-1. **Trading** (`xchange_trading`) - 14 tables
-   - T_CARRIER, T_DEAL, T_DEAL_*, T_LOCATION, T_USER, V_ABSTRACT_OFFER*
-
-2. **Finance** (`xchange_finance`) - 8 tables
-   - T_ACCOUNT, T_INSURANCE_UNIT, T_INVOICE, T_LEASING_*, T_MEMBERSHIP_*
-
-3. **Live** (`xchangelive`) - 15 tables
-   - pipedrive_id_lookup, T_CARRIER, T_COMPANY_*, T_DEPOT_MAPPER, T_LOCATION, T_REQUEST*
-
-**Target Database:**
-- PostgreSQL (`cdc_pipeline`)
-- Schemas: `xchange_trading`, `xchange_finance`, `xchangelive`
-
-## Migration Strategy
-
-**For CDC Pipeline (Recommended Approach):**
-
-1. Use `migrate.py` for initial data load (non-destructive, incremental)
-2. Use Debezium connectors for ongoing CDC (Change Data Capture)
-
-**Important:**
-- `migrate.py` does NOT drop existing schemas or tables
-- You must manually drop tables if you want a clean slate
-- Re-running migration on existing tables will skip table creation and attempt data insertion (may fail on duplicate keys)
-
-## Performance Tuning
-
-**For Small Databases (<1M rows per table):**
-```bash
-python3 migrate.py --database finance \
-  --tables T_INVOICE,T_ACCOUNT \
-  --max-workers 4
-```
-
-**For Large Databases:**
-```bash
-python3 migrate.py --database trading \
-  --tables T_DEAL,T_ABSTRACT_OFFER \
   --max-workers 8 \
-  --chunk-workers 6 \
-  --batch-size 50000 \
-  --threshold 500000
+  --batch-size 50000
 ```
 
-**Tips:**
-- Increase `--max-workers` if you have many small-to-medium tables
-- Increase `--chunk-workers` for tables with >1M rows
-- Decrease `--batch-size` if running into memory issues
-- Lower `--threshold` to enable chunking on smaller tables
+**Parameters:**
+- `--database`: Database name (required)
+- `--tables`: Comma-separated table list or "all" (required)
+- `--max-workers`: Parallel workers (default: 2)
+- `--chunk-workers`: Workers for large table chunks (default: 4)
+- `--batch-size`: Rows per batch (default: 100000)
+- `--threshold`: Large table threshold (default: 1000000)
+
+## Connector Configuration
+
+### Source Connector Settings
+
+Key configurations in `connectors/sources/mariadb/<database>.json`:
+
+```json
+{
+  "snapshot.mode": "schema_only",          // Normal mode
+  "snapshot.mode": "recovery",             // Use when adding new tables
+  "table.include.list": "${TABLE_ALLOWLIST}",
+  "topic.prefix": "xchange_trading",
+  "schema.history.internal.kafka.topic": "xchange_trading.schema-history"
+}
+```
+
+### Sink Connector Settings
+
+Key configurations in `connectors/sinks/postgres/<database>.json`:
+
+```json
+{
+  "topics.regex": "xchange_trading\\.xchange_trading\\..*",
+  "insert.mode": "upsert",
+  "primary.key.mode": "record_key",
+  "delete.enabled": "true",
+  "schema.evolution": "basic"
+}
+```
+
+## Troubleshooting
+
+### Check Connector Health
+```bash
+make connectors
+```
+
+### View Error Messages
+```bash
+make connector-status C=mariadb-trading-connector
+make connector-status C=postgres-sink-trading
+```
+
+### Common Issues
+
+**1. Type Mismatch (bit(1) fields)**
+
+Add Cast transform to sink connector:
+```json
+{
+  "transforms": "route,castBits",
+  "transforms.castBits.type": "org.apache.kafka.connect.transforms.Cast$Value",
+  "transforms.castBits.spec": "active:boolean,deleted:boolean"
+}
+```
+
+**2. Source Connector Not Capturing Changes**
+
+- Verify `snapshot.mode: "schema_only"` after initial setup
+- Check binlog position hasn't expired
+- Ensure tables are in allowlist
+
+**3. Sink Connector Failing**
+
+- Check topic regex matches source topic prefix
+- Verify primary keys exist in target tables
+- Check schema compatibility
+
+## Data Flow
+
+```
+MariaDB (Source)
+    ↓
+Debezium Source Connector (captures binlog changes)
+    ↓
+Kafka Topics (xchange_<db>.<db>.<table>)
+    ↓
+Debezium Sink Connector (consumes from earliest offset)
+    ↓
+PostgreSQL (Target: mp_cdc schema)
+```
+
+## Databases
+
+| Database | MariaDB Schema | Table Count | Topic Prefix |
+|----------|----------------|-------------|--------------|
+| Trading | xchange_trading | 14 | xchange_trading |
+| Finance | xchange_finance | 8 | xchange_finance |
+| Live | xchangelive | 15 | xchangelive |
+| Chat | xchange_chat | TBD | xchange_chat |
+| Performance | xchange_performance | TBD | xchange_performance |
+| Concontrol | xchange_concontrol | TBD | xchange_concontrol_v4 |
+| Claim | xchange_claim | TBD | xchange_claim |
+| Payment | xchange_payment | TBD | xchange_payment |
+
+## Notes
+
+- **Debezium hosted on Fly.io**: No local Debezium Connect required
+- **Source connectors**: Use `snapshot.mode: "schema_only"` for normal operation
+- **Sink connectors**: Read from `earliest` offset to prevent data loss
+- **Schema history**: Changing the topic name forces new binlog offset
+- **PUT endpoint**: `restart-*` commands preserve connector state/offsets

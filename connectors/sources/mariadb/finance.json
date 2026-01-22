@@ -15,7 +15,7 @@
 
     "table.include.list": "${FINANCE_TABLE_ALLOWLIST}",
 
-    "snapshot.mode": "recovery",
+    "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
@@ -71,8 +71,7 @@
 
     "transforms": "unwrap",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
-    "transforms.unwrap.drop.tombstones": "false",
-    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.delete.handling.mode": "none",
     "transforms.unwrap.add.fields": "op,source.ts_ms,source.db,source.table"
   }
 }

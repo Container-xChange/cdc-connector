@@ -3,9 +3,9 @@ FROM debezium/connect:3.0.0.Final
 # Switch to root for system setup
 USER root
 
-# Install OpenVPN and netcat for connectivity testing
+# Install OpenVPN and netcat for VPN connection
 # Debezium image is based on Red Hat UBI, use microdnf
-RUN microdnf install -y openvpn nmap-ncat iproute && microdnf clean all
+RUN microdnf install -y openvpn nmap-ncat iproute ca-certificates && microdnf clean all
 
 # Remove unnecessary connectors - keep only MySQL/MariaDB and JDBC (for Postgres sink)
 RUN rm -rf /kafka/connect/debezium-connector-mongodb \
@@ -17,14 +17,17 @@ RUN rm -rf /kafka/connect/debezium-connector-mongodb \
     /kafka/connect/debezium-connector-ibmi
 
 # Copy VPN configuration and entrypoint
-COPY connectors/profile-286.ovpn /kafka/profile-286.ovpn
-COPY connectors/pass-prod.txt /pass-prod.txt
-COPY connectors/entrypoint-prod.sh /entrypoint-prod.sh
+COPY profile-286.ovpn /kafka/profile-286.ovpn
+COPY pass-prod.txt /pass-prod.txt
+COPY entrypoint-prod.sh /entrypoint-prod.sh
 
 # Copy connector configurations
 COPY connectors/sources/mariadb/*.json /kafka/connectors/sources/mariadb/
 COPY connectors/sinks/postgres/*.json /kafka/connectors/sinks/postgres/
 COPY scripts/deploy /kafka/scripts/deploy
+
+# Update CA certificates to fix SSL verification
+RUN update-ca-trust
 
 # Set permissions
 RUN chmod 600 /pass-prod.txt && \

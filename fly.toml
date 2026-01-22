@@ -7,7 +7,10 @@ app = 'cdc-connector'
 primary_region = 'fra'
 
 [build]
-  dockerfile = 'connectors/Dockerfile'
+  dockerfile = 'Dockerfile'
+
+[env]
+  TZ = "UTC"
 
 [http_service]
   internal_port = 8083
@@ -15,7 +18,6 @@ primary_region = 'fra'
   auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ['app']
 
   [[http_service.checks]]
     grace_period = "60s"

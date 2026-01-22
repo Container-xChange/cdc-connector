@@ -69,8 +69,7 @@
 
     "transforms": "unwrap,renameCarrierUser",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
-    "transforms.unwrap.drop.tombstones": "false",
-    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.delete.handling.mode": "none",
     "transforms.unwrap.add.fields": "op,source.ts_ms,source.db,source.table",
     "transforms.renameCarrierUser.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
     "transforms.renameCarrierUser.renames": "user:owner_user_id",

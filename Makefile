@@ -1,4 +1,4 @@
-.PHONY: help connectors connector-status \
+.PHONY: help connectors connector-status unregister-all \
 	register-trading-source register-trading-sink \
 	register-finance-source register-finance-sink \
 	register-live-source register-live-sink \
@@ -49,6 +49,7 @@ help:
 	@echo "Unregister Connectors:"
 	@echo "  make unregister-<database>-source - Delete source connector"
 	@echo "  make unregister-<database>-sink   - Delete sink connector"
+	@echo "  make unregister-all               - Delete ALL source and sink connectors"
 	@echo ""
 	@echo "Available databases: trading, finance, live, chat, performance, concontrol, claim, payment"
 	@echo ""
@@ -415,3 +416,46 @@ connector-status:
 		exit 1; \
 	fi
 	@curl -s $$DEBEZIUM_URL/connectors/$(C)/status | jq .
+
+# Unregister all connectors
+unregister-all:
+	@echo "⚠️  WARNING: This will delete ALL connectors (sources and sinks)"
+	@echo "Deleting all source connectors..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-trading-connector 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-finance-connector 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-live-connector 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-chat-connector 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-performance-connector 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-concontrol-connector 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-claim-connector 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-payment-connector 2>/dev/null || true
+	@echo "✓ All source connectors deleted"
+	@echo ""
+	@echo "Deleting all sink connectors..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-trading 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-finance 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-live 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-chat 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-performance 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-concontrol 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-claim 2>/dev/null || true
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-payment 2>/dev/null || true
+	@echo "✓ All sink connectors deleted"
+	@echo ""
+	@echo "✅ All connectors have been unregistered"
+
+register-dev-source:
+	@echo "Registering Dev source connector..."
+	@envsubst < connectors/sources/mariadb/test.json | \
+	curl -X POST $$DEV_DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo "✓ Dev source registered"
+
+register-dev-sink:
+	@echo "Registering Dev sink connector..."
+	@envsubst '$${DEV_DB_URL} $${DEV_DB_USER} $${DEV_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/test.json | \
+	curl -X POST $$DEV_DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo "✓ Dev sink registered"
