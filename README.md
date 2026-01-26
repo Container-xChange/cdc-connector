@@ -107,70 +107,31 @@ After Debezium completes snapshot (check connector status), update source config
 Commit, push, and GitHub Actions will restart the connector.
 
 **Manual Workflow (without CI/CD):**
+#### Adding Tables
+When adding a new table manually, a requirement checklist must be followed:
+- Create new connector JSON files 
+- Update migrate_v3.py database config if needed new database migration 
+- Update `.env` with database connection secrets and table allowlist
+- Create required make commands in Makefile (register, restart, unregister source and sink)
+
 ```bash
-# 1. Update configs (.env and source JSON)
-# 2. Migrate new table
-python3 migrate_v3.py --database <database> --tables T_NEW_TABLE
 
-# 3. Restart connectors
-make restart-<database>-source
-make restart-<database>-sink
-
-# 4. After snapshot completes, revert snapshot.mode and restart
-make restart-<database>-source
+make register-<database>-source
+python3 migrate_v3.py --database <database> --tables all
+make register-<database>-sink
 ```
-
 #### Removing Tables
 
-When you remove a table from the allowlist:
-
-**Note**: Removing tables does NOT require changing snapshot mode, but you must version the topic prefix to force a new binlog offset.
-
-**Step 1: Update Source Connector**
-
-Edit `connectors/sources/mariadb/<database>.json`:
-```json
-{
-  "config": {
-    "table.include.list": "schema.T_KEEP_THIS",
-    "topic.prefix": "xchange_<database>_v2",
-    "schema.history.internal.kafka.topic": "xchange_<database>-v2.schema-history"
-  }
-}
-```
-
-**Step 2: Update Sink Connector**
-
-Edit `connectors/sinks/postgres/<database>.json`:
-```json
-{
-  "config": {
-    "topics.regex": "xchange_<database>_v2\\.<schema>\\..*"
-  }
-}
-```
-
-**Step 3: Update `.env`**
-```bash
+When removing a table from the allowlist:
+**Step 2: Update `.env`**
+```.env
 <DATABASE>_TABLE_ALLOWLIST=schema.T_KEEP_THIS
 ```
-
-**Step 4: Create PR and Trigger GitHub Actions**
-
-GitHub Actions will:
-- Detect config changes
-- Restart both source and sink connectors via `make restart-*`
-- Verify connectors are running
-
-This creates new Kafka topics with the new prefix. Old topics are not automatically deleted.
-
-**Manual Workflow:**
+Run make command to restart source connector: 
 ```bash
-make restart-<database>-source
-make restart-<database>-sink
-```
 
-**Example**: See `connectors/sources/mariadb/concontrol.json` (uses `xchange_concontrol_v4`)
+make restart-<database>-source
+```
 
 ## Available Commands
 
