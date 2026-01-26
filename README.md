@@ -348,77 +348,24 @@ Create sink connector configuration:
 - `topics.regex` must match source connector's `topic.prefix` format
 - Add `castBits` transform if you have `bit(1)` fields (see "Type Mismatch" in Troubleshooting)
 
-### 4. Makefile Commands
+### 4. Migration Script Configuration (if needed)
 
-Add these targets to `Makefile`:
-
-```makefile
-register-<database>-source:
-	@echo "Registering <database> source connector..."
-	@$(MAKE) -s load-env
-	@envsubst < connectors/sources/mariadb/<database>.json | curl -X POST \
-		-H "Content-Type: application/json" \
-		-d @- \
-		${DEBEZIUM_URL}/connectors
-	@echo "\n✓ <Database> source connector registered"
-
-register-<database>-sink:
-	@echo "Registering <database> sink connector..."
-	@$(MAKE) -s load-env
-	@envsubst < connectors/sinks/postgres/<database>.json | curl -X POST \
-		-H "Content-Type: application/json" \
-		-d @- \
-		${DEBEZIUM_URL}/connectors
-	@echo "\n✓ <Database> sink connector registered"
-
-restart-<database>-source:
-	@echo "Restarting <database> source connector..."
-	@$(MAKE) -s load-env
-	@envsubst < connectors/sources/mariadb/<database>.json | curl -X PUT \
-		-H "Content-Type: application/json" \
-		-d @- \
-		${DEBEZIUM_URL}/connectors/mariadb-<database>-connector/config
-	@echo "\n✓ <Database> source connector restarted"
-
-restart-<database>-sink:
-	@echo "Restarting <database> sink connector..."
-	@$(MAKE) -s load-env
-	@envsubst < connectors/sinks/postgres/<database>.json | curl -X PUT \
-		-H "Content-Type: application/json" \
-		-d @- \
-		${DEBEZIUM_URL}/connectors/postgres-sink-<database>/config
-	@echo "\n✓ <Database> sink connector restarted"
-
-unregister-<database>-source:
-	@echo "Unregistering <database> source connector..."
-	@$(MAKE) -s load-env
-	@curl -X DELETE ${DEBEZIUM_URL}/connectors/mariadb-<database>-connector
-	@echo "\n✓ <Database> source connector unregistered"
-
-unregister-<database>-sink:
-	@echo "Unregistering <database> sink connector..."
-	@$(MAKE) -s load-env
-	@curl -X DELETE ${DEBEZIUM_URL}/connectors/postgres-sink-<database>
-	@echo "\n✓ <Database> sink connector unregistered"
-```
-
-**Important**: Replace `<database>` with lowercase name, `<Database>` with capitalized, `<DATABASE>` with uppercase
-
-### 5. Migration Script Configuration (if needed)
-
-If the database uses a non-standard schema name or requires special type mappings, update `migrate_v3.py`:
+If you need to add the new database to the migration script, update the `DB_CONFIGS` dictionary in `migrate_v3.py`:
 
 ```python
 DB_CONFIGS = {
     # ... existing configs ...
-    '<database>': {
-        'schema': 'custom_schema_name',  # If different from database name
-        'type_overrides': {
-            'T_SPECIAL_TABLE': {
-                'special_column': 'TEXT'
-            }
-        }
-    }
+    'NEW_TABLE': {
+        'mysql': {
+            'host': 'NEW_TABLE_HOST',
+            'port': 'NEW_TABLE_PORT',
+            'user': 'NEW_TABLE_USER',
+            'password': 'NEW_TABLE_PASS',
+            'database': 'NEW_TABLE_DB'
+        },
+        'schema': 'mp_cdc',  # target schema in PostgreSQL
+        'prefix': 'trading_' # custom prefix if needed
+    },
 }
 ```
 
