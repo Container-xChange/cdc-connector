@@ -13,7 +13,7 @@
     "topic.prefix": "xchange_performance",
     "database.include.list": "xchange_company_performance",
 
-    "table.include.list": "${PERFORMANCE_TABLE_ALLOWLIST}",
+    "table.include.list": "xchange_company_performance.T_COMPANY_PERFORMANCE_METRICS,xchange_company_performance.T_COMPANY_PERFORMANCE_METRICS_HISTORY",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",

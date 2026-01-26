@@ -13,7 +13,7 @@
     "topic.prefix": "xchange_concontrol",
     "database.include.list": "xchange_concontrol",
 
-    "table.include.list": "${CONCONTROL_TABLE_ALLOWLIST}",
+    "table.include.list": "xchange_concontrol.T_CONTAINER,xchange_concontrol.T_DEPOT,xchange_concontrol.T_REFERENCE,xchange_concontrol.T_TRANSACTION",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",

@@ -13,7 +13,7 @@
     "topic.prefix": "xchange_payment",
     "database.include.list": "xchange_payment",
 
-    "table.include.list": "${PAYMENT_TABLE_ALLOWLIST}",
+    "table.include.list": "xchange_payment.T_RESOLVE_PAYMENT_DETAILS,xchange_payment.T_STRIPE_CUSTOMER",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",

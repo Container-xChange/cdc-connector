@@ -807,7 +807,7 @@ class SlackNotifier:
         else:
             self.client = None
 
-    def send_summary(self, reports: List[TableValidationReport]):
+    def send_summary(self, reports: List[TableValidationReport], database: str = None):
         """Send validation summary to Slack"""
         if not self.client:
             logger.warning("Slack token not configured - skipping notification")
@@ -835,13 +835,19 @@ class SlackNotifier:
                 status_text = "ALL PASSED"
                 color = "#00FF00"
 
+            # Build header with optional database name
+            if database:
+                header_text = f"{status_emoji} CDC Validation Report - {database.upper()} - {status_text}"
+            else:
+                header_text = f"{status_emoji} CDC Validation Report - {status_text}"
+
             # Build message
             blocks = [
                 {
                     "type": "header",
                     "text": {
                         "type": "plain_text",
-                        "text": f"{status_emoji} CDC Validation Report - {status_text}"
+                        "text": header_text
                     }
                 },
                 {
@@ -966,7 +972,7 @@ def print_report(report: TableValidationReport):
     print()
 
 
-def print_summary(reports: List[TableValidationReport]):
+def print_summary(reports: List[TableValidationReport], database: str = None):
     """Print overall summary with detailed failure breakdown"""
     total = len(reports)
     passed = sum(1 for r in reports if r.overall_status == ValidationStatus.PASS)
@@ -977,7 +983,10 @@ def print_summary(reports: List[TableValidationReport]):
     cdc_applicable = sum(1 for r in reports if r.cdc_consistent is not None)
 
     print(f"\n{'='*80}")
-    print(f"OVERALL SUMMARY")
+    if database:
+        print(f"OVERALL SUMMARY - {database.upper()}")
+    else:
+        print(f"OVERALL SUMMARY")
     print(f"{'='*80}")
     print(f"Total tables validated: {total}")
     print(f"  {ValidationStatus.PASS.value}: {passed}")
@@ -1134,11 +1143,13 @@ CDC Validation Principles:
             continue
 
     if all_reports:
-        print_summary(all_reports)
+        # Pass database name only if single database validation
+        db_name = args.database if args.database and not args.all else None
+        print_summary(all_reports, database=db_name)
 
         # Send Slack notification
         notifier = SlackNotifier()
-        notifier.send_summary(all_reports)
+        notifier.send_summary(all_reports, database=db_name)
 
         # Exit with error if any CDC inconsistencies
         if any(not r.cdc_consistent for r in all_reports):

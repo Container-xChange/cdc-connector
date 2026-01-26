@@ -13,7 +13,7 @@
     "topic.prefix": "xchange_claim",
     "database.include.list": "xchange_claim",
 
-    "table.include.list": "${CLAIM_TABLE_ALLOWLIST}",
+    "table.include.list": "xchange_claim.T_CLAIM,xchange_claim.T_CONTAINER",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",

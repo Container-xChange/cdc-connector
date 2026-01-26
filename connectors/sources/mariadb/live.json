@@ -13,7 +13,7 @@
     "topic.prefix": "xchangelive",
     "database.include.list": "xchangelive",
 
-    "table.include.list": "${LIVE_TABLE_ALLOWLIST}",
+    "table.include.list": "xchangelive.T_CARRIER,xchangelive.T_COMPANY_REVIEW,xchangelive.T_DEPOT_MAPPER,xchangelive.T_LOCATION,xchangelive.T_REQUEST,xchangelive.T_REQUEST_PAYMENT,xchangelive.T_REQUEST_VERSION,xchangelive.T_USER,xchangelive.T_PICKUP_DATA,xchangelive.T_COMPANY_DEFAULTED",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",

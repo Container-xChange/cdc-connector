@@ -57,8 +57,8 @@ make register-<database>-source
 python3 migrate_v3.py --database <database> --tables all
 make register-<database>-sink
 ```
-
-**Available databases**: `trading`, `finance`, `live`, `chat`, `performance`, `concontrol`, `claim`, `payment`
+all is simple, as the script will skip tables that are already migrated. But you can also specify a table (more below)
+**Available databases**: `trading`, `finance`, `live`, `chat`, `performance`, `concontrol`, `claim`, `payment`, add more if needed
 
 ### 3. Updating Existing Database (Adding/Removing Tables)
 
@@ -101,6 +101,8 @@ After Debezium completes snapshot (check connector status), update source config
 ```
 
 Commit, push, and GitHub Actions will restart the connector.
+
+**Same should apply to removing tables** 
 
 ## Available Commands
 
@@ -176,7 +178,7 @@ Key configurations in `connectors/sources/mariadb/<database>.json`:
 ```json
 {
   "snapshot.mode": "schema_only",          // Normal mode
-  "snapshot.mode": "recovery",             // Use when adding new tables
+  "snapshot.mode": "recovery",             // Use when adding/removing new tables
   "table.include.list": "${TABLE_ALLOWLIST}",
   "topic.prefix": "xchange_trading",
   "schema.history.internal.kafka.topic": "xchange_trading.schema-history"

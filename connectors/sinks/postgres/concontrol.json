@@ -8,7 +8,7 @@
     "connection.username": "${SINK_DB_USER}",
     "connection.password": "${SINK_DB_PASSWORD}",
 
-    "topics.regex": "xchange_concontrol_v4\\.xchange_concontrol\\..*",
+    "topics.regex": "xchange_concontrol\\.xchange_concontrol\\..*",
 
     "insert.mode": "upsert",
     "primary.key.mode": "record_key",
@@ -30,7 +30,7 @@
 
     "transforms": "route,castBits",
     "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
-    "transforms.route.regex": "xchange_concontrol_v4\\.xchange_concontrol\\.(.*)",
+    "transforms.route.regex": "xchange_concontrol\\.xchange_concontrol\\.(.*)",
     "transforms.route.replacement": "concontrol_$1",
 
     "transforms.castBits.type": "org.apache.kafka.connect.transforms.Cast$Value",

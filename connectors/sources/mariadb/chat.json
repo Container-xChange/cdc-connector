@@ -13,7 +13,7 @@
     "topic.prefix": "xchange_chat",
     "database.include.list": "xchange_chat",
 
-    "table.include.list": "${CHAT_TABLE_ALLOWLIST}",
+    "table.include.list": "xchange_chat.T_CHANNEL,xchange_chat.T_MESSAGE",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",

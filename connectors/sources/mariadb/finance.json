@@ -13,9 +13,9 @@
     "topic.prefix": "xchange_finance",
     "database.include.list": "xchange_finance",
 
-    "table.include.list": "${FINANCE_TABLE_ALLOWLIST}",
+    "table.include.list": "xchange_finance.T_ACCOUNT,xchange_finance.T_INVOICE,xchange_finance.T_MEMBERSHIP_CONTRACT,xchange_finance.T_MEMBERSHIP_CONTRACT_VERSION,xchange_finance.T_MEMBERSHIP_CONTRACT_VERSION_DISCOUNT,xchange_finance.T_MEMBERSHIP_CONTRACT_VERSION_PAUSE,xchange_finance.T_LINE_ITEM,xchange_finance.T_INVOICE_LINE_ITEM,xchange_finance.T_FINANCIAL_CONTACT",
 
-    "snapshot.mode": "schema_only",
+    "snapshot.mode": "recovery",
     "snapshot.locking.mode": "none",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",

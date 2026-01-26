@@ -1,5 +1,27 @@
 # CDC Validation Cron Schedule
 # Format: minute hour day month weekday command
 
-# Run validation every hour at minute 0 (source env vars first)
-1 * * * * export $(cat /app/.env_for_cron | xargs) && cd /app && /usr/local/bin/python3 tests/validation.py --all >> /proc/1/fd/1 2>&1
+# Run validation for each database separately to avoid OOM
+# Trading
+0 * * * * export $(cat /app/.env_for_cron | xargs) && cd /app && /usr/local/bin/python3 tests/validation.py --database trading >> /proc/1/fd/1 2>&1
+
+# Finance
+5 * * * * export $(cat /app/.env_for_cron | xargs) && cd /app && /usr/local/bin/python3 tests/validation.py --database finance >> /proc/1/fd/1 2>&1
+
+# Live
+10 * * * * export $(cat /app/.env_for_cron | xargs) && cd /app && /usr/local/bin/python3 tests/validation.py --database live >> /proc/1/fd/1 2>&1
+
+# Chat
+15 * * * * export $(cat /app/.env_for_cron | xargs) && cd /app && /usr/local/bin/python3 tests/validation.py --database chat >> /proc/1/fd/1 2>&1
+
+# Performance
+20 * * * * export $(cat /app/.env_for_cron | xargs) && cd /app && /usr/local/bin/python3 tests/validation.py --database performance >> /proc/1/fd/1 2>&1
+
+# Concontrol
+25 * * * * export $(cat /app/.env_for_cron | xargs) && cd /app && /usr/local/bin/python3 tests/validation.py --database concontrol >> /proc/1/fd/1 2>&1
+
+# Claim
+30 * * * * export $(cat /app/.env_for_cron | xargs) && cd /app && /usr/local/bin/python3 tests/validation.py --database claim >> /proc/1/fd/1 2>&1
+
+# Payment
+35 * * * * export $(cat /app/.env_for_cron | xargs) && cd /app && /usr/local/bin/python3 tests/validation.py --database payment >> /proc/1/fd/1 2>&1

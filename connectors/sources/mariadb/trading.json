@@ -13,7 +13,7 @@
     "topic.prefix": "xchange_trading",
     "database.include.list": "xchange_trading",
 
-    "table.include.list": "${TRADING_TABLE_ALLOWLIST}",
+    "table.include.list": "change_trading.T_DEAL,xchange_trading.T_DEAL_DECLINE_REASON,xchange_trading.T_DEAL_HISTORY,xchange_trading.T_DEAL_PROPOSAL,xchange_trading.T_DECLINE_REASON,xchange_trading.T_ABSTRACT_OFFER,xchange_trading.T_ABSTRACT_OFFER_ATTACHMENT",
 
     "snapshot.mode": "recovery",
     "snapshot.locking.mode": "none",
