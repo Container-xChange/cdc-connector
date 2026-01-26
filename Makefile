@@ -443,19 +443,3 @@ unregister-all:
 	@echo "✓ All sink connectors deleted"
 	@echo ""
 	@echo "✅ All connectors have been unregistered"
-
-register-dev-source:
-	@echo "Registering Dev source connector..."
-	@envsubst < connectors/sources/mariadb/test.json | \
-	curl -X POST $$DEV_DEBEZIUM_URL/connectors \
-		-H "Content-Type: application/json" \
-		-d @- | jq .
-	@echo "✓ Dev source registered"
-
-register-dev-sink:
-	@echo "Registering Dev sink connector..."
-	@envsubst '$${DEV_DB_URL} $${DEV_DB_USER} $${DEV_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/test.json | \
-	curl -X POST $$DEV_DEBEZIUM_URL/connectors \
-		-H "Content-Type: application/json" \
-		-d @- | jq .
-	@echo "✓ Dev sink registered"
