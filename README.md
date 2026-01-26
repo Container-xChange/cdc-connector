@@ -43,22 +43,20 @@ See `.env.template` for all required environment variables.
 
 ### 2. Normal Workflow (New Database Setup)
 
-**Step 1: Register Source Connector**
+**Manual Workflow (without CI/CD):**
+#### Adding Tables
+When adding a new table manually, a requirement checklist must be followed:
+- Create new connector JSON files
+- Update migrate_v3.py database config if needed new database migration
+- Update `.env` with database connection secrets and table allowlist
+- Create required make commands in Makefile (register, restart, unregister source and sink)
+
 ```bash
+
 make register-<database>-source
-```
-
-**Step 2: Migrate Initial Data**
-```bash
 python3 migrate_v3.py --database <database> --tables all
-```
-
-**Step 3: Register Sink Connector**
-```bash
 make register-<database>-sink
 ```
-
-This establishes the CDC pipeline. The sink reads from the earliest offset, ensuring no data is missed between migration and CDC activation.
 
 **Available databases**: `trading`, `finance`, `live`, `chat`, `performance`, `concontrol`, `claim`, `payment`
 
@@ -85,13 +83,11 @@ Also update `.env` for migration script:
 <DATABASE>_TABLE_ALLOWLIST=schema.T_OLD_TABLE,schema.T_NEW_TABLE
 ```
 
-**Step 2: Create PR and Trigger GitHub Actions**
+**Step 2: Restart Connector (To be automated via github action)**
+```bash
 
-When you commit and push:
-- GitHub Actions will detect `snapshot.mode: "recovery"`
-- Connector will be restarted via `make restart-<database>-source`
-- Migration script will NOT run (only for new databases)
-- Debezium will snapshot the new table while streaming existing tables
+make restart-<database>-source
+```
 
 **Step 3: Revert snapshot.mode (Manual)**
 
@@ -105,33 +101,6 @@ After Debezium completes snapshot (check connector status), update source config
 ```
 
 Commit, push, and GitHub Actions will restart the connector.
-
-**Manual Workflow (without CI/CD):**
-#### Adding Tables
-When adding a new table manually, a requirement checklist must be followed:
-- Create new connector JSON files 
-- Update migrate_v3.py database config if needed new database migration 
-- Update `.env` with database connection secrets and table allowlist
-- Create required make commands in Makefile (register, restart, unregister source and sink)
-
-```bash
-
-make register-<database>-source
-python3 migrate_v3.py --database <database> --tables all
-make register-<database>-sink
-```
-#### Removing Tables
-
-When removing a table from the allowlist:
-**Step 2: Update `.env`**
-```.env
-<DATABASE>_TABLE_ALLOWLIST=schema.T_KEEP_THIS
-```
-Run make command to restart source connector: 
-```bash
-
-make restart-<database>-source
-```
 
 ## Available Commands
 
