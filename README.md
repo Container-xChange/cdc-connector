@@ -4,48 +4,41 @@
 
 This project implements a CDC (Change Data Capture) pipeline using Debezium connectors to replicate data from MariaDB instances to PostgreSQL in real-time.
 
+
 **Architecture:**
 - **Debezium Connectors**: Hosted on Fly.io (https://cdc-connector.fly.dev)
 - **Source**: MariaDB databases (8 separate instances)
 - **Target**: PostgreSQL database (mp_cdc schema)
 - **Message Broker**: Confluent Kafka
 - **Initial Data Migration**: Python script (migrate_v3.py)
+- **Kafka UI**: http://kafka-ui-non-prod.eks/ui/clusters/non-prod/all-topics
+
+
+## Food For Thought
+- If one day CDC stops to work, if we are able to resolve whatever that causes the failure within 24 hours, we will be able to recover lost data from last binlog position stored in `debezium-offsets` topic. But if we failed to fix it before that, binlog will be dropped, and we will have to remigrate everything.
+- We discovered a table xchange_chat.T_PARTICIPANT, despite having unique index, sink is getting duplicate key violation. While this table isn't migrated, might still worth further investigation. 
 
 ## Quick Start
 
 ### 1. Environment Setup
+.env credentials can be found here https://start.1password.com/open/i?a=X3KGYLEMSVGBFMSJELJFULCHEI&v=biig4vsmmhkwtzruivpz7sbicy&i=r5ipqemdtk6p577swmvatvbcxy&h=my.1password.com
 
-Create `.env` file based on `.env.template` with your database credentials:
+Download it and slap it in the repo, in root, as `.env`
 
-```bash
-# MariaDB Sources
-TRADING_HOST=...
-TRADING_USER=...
-TRADING_PASS=...
-TRADING_TABLE_ALLOWLIST=xchange_trading.T_TABLE1,xchange_trading.T_TABLE2
-# ... (repeat for finance, live, chat, performance, concontrol, claim, payment)
+### 1.5 Download Python Dependencies
+Make sure you have python installed. Create a virtual environment and install dependencies.
+```bash 
 
-# PostgreSQL Target
-SINK_DB_URL=jdbc:postgresql://...
-SINK_DB_USER=...
-SINK_DB_PASSWORD=...
-
-# Kafka
-KAFKA_BOOTSTRAP_SERVERS=...
-CONFLUENT_API_KEY=...
-CONFLUENT_API_SECRET=...
-
-# Debezium
-DEBEZIUM_URL=https://cdc-connector.fly.dev
+python -m venv /path/to/new/virtual/environment
+source venv/bin/activate 
+pip install -r requirements-validation.txt
 ```
-
-See `.env.template` for all required environment variables.
 
 ### 2. Normal Workflow (New Database Setup)
 
 **Manual Workflow (without CI/CD):**
-#### Adding Tables
-When adding a new table manually, a requirement checklist must be followed:
+#### New Database Connections
+When establishing a new connection, a requirement checklist must be followed:
 - Create new connector JSON files
 - Update migrate_v3.py database config if needed new database migration
 - Update `.env` with database connection secrets and table allowlist
@@ -57,10 +50,11 @@ make register-<database>-source
 python3 migrate_v3.py --database <database> --tables all
 make register-<database>-sink
 ```
-all is simple, as the script will skip tables that are already migrated. But you can also specify a table (more below)
+Using param `all` for simplicity, as the script will skip tables that are already migrated. But you can also specify a table (more below)
+
 **Available databases**: `trading`, `finance`, `live`, `chat`, `performance`, `concontrol`, `claim`, `payment`, add more if needed
 
-### 3. Updating Existing Database (Adding/Removing Tables)
+### Updating Existing Database (Adding/Removing Tables)
 
 #### Adding New Tables
 
@@ -79,17 +73,27 @@ Edit `connectors/sources/mariadb/<database>.json`:
 ```
 
 Also update `.env` for migration script:
-```bash
+```
 <DATABASE>_TABLE_ALLOWLIST=schema.T_OLD_TABLE,schema.T_NEW_TABLE
 ```
 
-**Step 2: Restart Connector (To be automated via github action)**
+**Step 2: Unregister sink to migrate new table, restart source config to update debezium config**
 ```bash
 
+make unregister-<database>-sink
 make restart-<database>-source
 ```
 
-**Step 3: Revert snapshot.mode (Manual)**
+**Step 3: Migrate the table**
+```
+python migrate_v3.py --database <database> --tables T_NEW_TABLE
+```
+
+**Step 4: Reconnect Sink**
+```bash
+
+make register-<database>-sink
+```
 
 After Debezium completes snapshot (check connector status), update source config:
 ```json
@@ -99,10 +103,46 @@ After Debezium completes snapshot (check connector status), update source config
   }
 }
 ```
+and 
+```bash
 
-Commit, push, and GitHub Actions will restart the connector.
+make restart-<database>-source
+```
 
-**Same should apply to removing tables** 
+#### Deleting Tables from include list 
+**Step 1: Update Table Include List**
+
+Edit `connectors/sources/mariadb/<database>.json`:
+```json
+{
+  "config": {
+    "table.include.list": "schema.T_OLD_TABLE",
+    "snapshot.mode": "recovery"
+  }
+}
+```
+
+Also update `.env` for migration script:
+```
+<DATABASE>_TABLE_ALLOWLIST=schema.T_OLD_TABLE
+```
+**Step 2: Unregister source and sink**
+```bash
+
+make unregister-<database>-sink
+make unregister-<database>-source
+```
+
+**Step 3: Kafka UI**
+
+You will have to manually delete topics related to the removed tables from Kafka UI, as Debezium does not automatically delete topics when tables are removed from the include list.
+
+**Step 4: Restart CDC**
+```bash
+
+make register-<database>-source
+make register-<database>-sink
+```
 
 ## Available Commands
 
