@@ -1,25 +1,26 @@
 {
-  "name": "mariadb-live-connector",
+  "name": "mariadb-claim-connector",
   "config": {
     "connector.class": "io.debezium.connector.mysql.MySqlConnector",
     "tasks.max": "1",
 
-    "database.hostname": "${LIVE_HOST}",
-    "database.port": "${LIVE_PORT}",
-    "database.user": "${LIVE_USER}",
-    "database.password": "${LIVE_PASS}",
-    "database.server.id": "${LIVE_SERVER_ID}",
+    "database.hostname": "${CLAIM_HOST}",
+    "database.port": "${CLAIM_PORT}",
+    "database.user": "${CLAIM_USER}",
+    "database.password": "${CLAIM_PASS}",
+    "database.server.id": "${CLAIM_SERVER_ID}",
 
-    "topic.prefix": "xchangelive",
-    "database.include.list": "xchangelive",
+    "topic.prefix": "xchange_claim",
+    "database.include.list": "xchange_claim",
 
-    "table.include.list": "xchangelive.T_CARRIER,xchangelive.T_COMPANY_REVIEW,xchangelive.T_DEPOT_MAPPER,xchangelive.T_LOCATION,xchangelive.T_REQUEST,xchangelive.T_REQUEST_PAYMENT,xchangelive.T_REQUEST_VERSION,xchangelive.T_USER,xchangelive.T_PICKUP_DATA,xchangelive.T_COMPANY_DEFAULTED",
+    "table.include.list": "xchange_claim.T_CLAIM,xchange_claim.T_CONTAINER",
 
     "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",
+    "snapshot.max.threads": "4",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
-    "schema.history.internal.kafka.topic": "xchangelive.schema-history",
+    "schema.history.internal.kafka.topic": "xchange_claim.schema-history",
     "schema.history.internal.store.only.captured.tables.ddl": "true",
     "schema.history.internal.skip.unparseable.ddl": "true",
     "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
@@ -38,6 +39,8 @@
     "decimal.handling.mode": "precise",
     "bigint.unsigned.handling.mode": "long",
     "time.precision.mode": "adaptive_time_microseconds",
+
+    "column.propagate.source.type": ".*",
 
     "converters": "boolean",
     "boolean.type": "io.debezium.connector.mysql.converters.TinyIntOneToBooleanConverter",
@@ -67,15 +70,9 @@
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "true",
 
-    "transforms": "unwrap,renameCarrierUser",
+    "transforms": "unwrap",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
     "transforms.unwrap.delete.handling.mode": "none",
-    "transforms.unwrap.add.fields": "op,source.ts_ms,source.db,source.table",
-    "transforms.renameCarrierUser.type": "org.apache.kafka.connect.transforms.ReplaceField$Value",
-    "transforms.renameCarrierUser.renames": "user:owner_user_id",
-    "transforms.renameCarrierUser.predicate": "isCarrierTable",
-    "predicates": "isCarrierTable",
-    "predicates.isCarrierTable.type": "org.apache.kafka.connect.transforms.predicates.TopicNameMatches",
-    "predicates.isCarrierTable.pattern": ".*T_CARRIER"
+    "transforms.unwrap.add.fields": "op,source.ts_ms,source.db,source.table"
   }
 }

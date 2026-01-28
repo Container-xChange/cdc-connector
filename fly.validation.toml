@@ -1,0 +1,25 @@
+# fly.toml app configuration file generated for cdc-connection-validator on 2026-01-21T16:33:40+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'cdc-connection-validator'
+primary_region = 'fra'
+
+[experimental]
+  auto_rollback = true
+
+[build]
+  dockerfile = 'Dockerfile.validation'
+
+[env]
+  TZ = 'UTC'
+
+[[mounts]]
+  source = 'cdc_validation_data'
+  destination = '/data'
+
+[[vm]]
+  memory = '1gb'
+  cpus = 1
+  memory_mb = 2048

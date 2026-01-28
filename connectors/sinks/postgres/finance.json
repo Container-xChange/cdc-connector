@@ -2,9 +2,9 @@
   "name": "postgres-sink-finance",
   "config": {
     "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
-    "tasks.max": "3",
+    "tasks.max": "1",
 
-    "connection.url": "${SINK_DB_URL}",
+    "connection.url": "${SINK_DB_URL}&currentSchema=mp_cdc",
     "connection.username": "${SINK_DB_USER}",
     "connection.password": "${SINK_DB_PASSWORD}",
 
@@ -16,12 +16,24 @@
 
     "schema.evolution": "basic",
     "quote.identifiers": "false",
-    "hibernate.dialect": "org.hibernate.dialect.PostgreSQLDialect",
-    "table.name.format": "xchange_finance.${topic}",
 
-    "transforms": "route",
+    "consumer.override.auto.offset.reset": "earliest",
+    "consumer.override.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "consumer.override.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "consumer.override.sasl.jaas.config": "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "consumer.override.ssl.endpoint.identification.algorithm": "https",
+
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "true",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "true",
+
+    "transforms": "route,castBits",
     "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
     "transforms.route.regex": "xchange_finance\\.xchange_finance\\.(.*)",
-    "transforms.route.replacement": "$1"
+    "transforms.route.replacement": "finance_$1",
+
+    "transforms.castBits.type": "org.apache.kafka.connect.transforms.Cast$Value",
+    "transforms.castBits.spec": "active:boolean,offline:boolean,deletable:boolean,is_disputed:boolean,auto_renew:boolean,extended:boolean,latest:boolean,charged:boolean,deleted:boolean,is_migrated:boolean,free_trial:boolean"
   }
 }

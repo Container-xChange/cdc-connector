@@ -1,14 +1,14 @@
 {
-  "name": "postgres-sink-live",
+  "name": "postgres-sink-chat",
   "config": {
     "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
-    "tasks.max": "2",
+    "tasks.max": "1",
 
     "connection.url": "${SINK_DB_URL}&currentSchema=mp_cdc",
     "connection.username": "${SINK_DB_USER}",
     "connection.password": "${SINK_DB_PASSWORD}",
 
-    "topics.regex": "xchangelive\\.xchangelive\\..*",
+    "topics.regex": "xchange_chat\\.xchange_chat\\..*",
 
     "insert.mode": "upsert",
     "primary.key.mode": "record_key",
@@ -30,7 +30,7 @@
 
     "transforms": "route",
     "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
-    "transforms.route.regex": "xchangelive\\.xchangelive\\.(.*)",
-    "transforms.route.replacement": "live_$1"
+    "transforms.route.regex": "xchange_chat\\.xchange_chat\\.(.*)",
+    "transforms.route.replacement": "chat_$1"
   }
 }

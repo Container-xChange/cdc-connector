@@ -13,24 +13,36 @@
     "topic.prefix": "xchange_finance",
     "database.include.list": "xchange_finance",
 
-    "table.include.list": "${FINANCE_TABLE_ALLOWLIST}",
+    "table.include.list": "xchange_finance.T_ACCOUNT,xchange_finance.T_INVOICE,xchange_finance.T_MEMBERSHIP_CONTRACT,xchange_finance.T_MEMBERSHIP_CONTRACT_VERSION,xchange_finance.T_MEMBERSHIP_CONTRACT_VERSION_DISCOUNT,xchange_finance.T_MEMBERSHIP_CONTRACT_VERSION_PAUSE,xchange_finance.T_LINE_ITEM,xchange_finance.T_INVOICE_LINE_ITEM,xchange_finance.T_FINANCIAL_CONTACT",
 
-    "snapshot.mode": "schema_only",
+    "snapshot.mode": "recovery",
     "snapshot.locking.mode": "none",
 
-    "schema.history.internal.kafka.bootstrap.servers": "redpanda:9092",
-    "schema.history.internal.kafka.topic": "xchange_finance.schema-history",
+    "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
+    "schema.history.internal.kafka.topic": "xchange_finance.line_item.schema-history",
     "schema.history.internal.store.only.captured.tables.ddl": "true",
     "schema.history.internal.skip.unparseable.ddl": "true",
-
+    "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "schema.history.internal.producer.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "schema.history.internal.producer.sasl.jaas.config": "org.apache.kafka.common.security.${KAFKA_LOGIN_MODULE} required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "schema.history.internal.producer.ssl.endpoint.identification.algorithm": "https",
+    "schema.history.internal.consumer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
+    "schema.history.internal.consumer.sasl.mechanism": "${KAFKA_SASL_MECHANISM}",
+    "schema.history.internal.consumer.sasl.jaas.config": "org.apache.kafka.common.security.${KAFKA_LOGIN_MODULE} required username=\"${CONFLUENT_API_KEY}\" password=\"${CONFLUENT_API_SECRET}\";",
+    "schema.history.internal.consumer.ssl.endpoint.identification.algorithm": "https",
+    "database.history.skip.unparseable.ddl": "true",
     "include.schema.changes": "true",
     "include.schema.comments": "false",
-
     "inconsistent.schema.handling.mode": "warn",
 
     "decimal.handling.mode": "precise",
     "bigint.unsigned.handling.mode": "long",
     "time.precision.mode": "adaptive_time_microseconds",
+
+    "column.propagate.source.type": ".*",
+
+    "converters": "boolean",
+    "boolean.type": "io.debezium.connector.mysql.converters.TinyIntOneToBooleanConverter",
 
     "tombstones.on.delete": "true",
 
@@ -43,6 +55,15 @@
 
     "event.processing.failure.handling.mode": "warn",
 
+    "topic.creation.enable": "true",
+    "topic.creation.default.replication.factor": "3",
+    "topic.creation.default.partitions": "1",
+    "topic.creation.default.cleanup.policy": "compact,delete",
+    "topic.creation.default.compression.type": "lz4",
+    "topic.creation.default.retention.ms": "15552000000",
+    "topic.creation.default.delete.retention.ms": "86400000",
+    "topic.creation.default.min.insync.replicas": "2",
+
     "key.converter": "org.apache.kafka.connect.json.JsonConverter",
     "key.converter.schemas.enable": "true",
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
@@ -50,8 +71,7 @@
 
     "transforms": "unwrap",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
-    "transforms.unwrap.drop.tombstones": "false",
-    "transforms.unwrap.delete.handling.mode": "rewrite",
+    "transforms.unwrap.delete.handling.mode": "none",
     "transforms.unwrap.add.fields": "op,source.ts_ms,source.db,source.table"
   }
 }

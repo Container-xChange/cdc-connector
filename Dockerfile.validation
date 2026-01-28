@@ -1,0 +1,32 @@
+# Lightweight image for validation cron job only
+FROM python:3.11-slim
+
+# Install OpenVPN, cron, and other dependencies
+RUN apt-get update && \
+    apt-get install -y openvpn netcat-openbsd iproute2 ca-certificates cron && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy VPN configuration
+COPY profile-286.ovpn /vpn/profile-286.ovpn
+COPY pass-prod.txt /vpn/pass-prod.txt
+
+# Copy validation script, cron config, and dependencies
+COPY tests/validation.py /app/tests/validation.py
+COPY tests/crontab /app/tests/crontab
+COPY tests/cron.sh /app/tests/cron.sh
+COPY requirements-validation.txt /app/requirements.txt
+
+# Install Python dependencies
+RUN pip3 install --no-cache-dir -r /app/requirements.txt
+
+# Set permissions
+RUN chmod 600 /vpn/pass-prod.txt && \
+    chmod 644 /vpn/profile-286.ovpn && \
+    chmod +x /app/tests/validation.py && \
+    chmod +x /app/tests/cron.sh
+
+# Set working directory
+WORKDIR /app
+
+ENTRYPOINT ["/app/tests/cron.sh"]

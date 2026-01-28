@@ -1,14 +1,14 @@
 {
-  "name": "postgres-sink-live",
+  "name": "postgres-sink-concontrol",
   "config": {
     "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
-    "tasks.max": "2",
+    "tasks.max": "1",
 
     "connection.url": "${SINK_DB_URL}&currentSchema=mp_cdc",
     "connection.username": "${SINK_DB_USER}",
     "connection.password": "${SINK_DB_PASSWORD}",
 
-    "topics.regex": "xchangelive\\.xchangelive\\..*",
+    "topics.regex": "xchange_concontrol\\.xchange_concontrol\\..*",
 
     "insert.mode": "upsert",
     "primary.key.mode": "record_key",
@@ -28,9 +28,12 @@
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "value.converter.schemas.enable": "true",
 
-    "transforms": "route",
+    "transforms": "route,castBits",
     "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
-    "transforms.route.regex": "xchangelive\\.xchangelive\\.(.*)",
-    "transforms.route.replacement": "live_$1"
+    "transforms.route.regex": "xchange_concontrol\\.xchange_concontrol\\.(.*)",
+    "transforms.route.replacement": "concontrol_$1",
+
+    "transforms.castBits.type": "org.apache.kafka.connect.transforms.Cast$Value",
+    "transforms.castBits.spec": "active:boolean,deleted:boolean,reference_confirmation_email:boolean"
   }
 }
