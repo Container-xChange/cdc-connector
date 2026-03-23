@@ -10,17 +10,17 @@
     "database.password": "${TRADING_PASS}",
     "database.server.id": "${TRADING_SERVER_ID}",
 
-    "topic.prefix": "xchange_trading",
+    "topic.prefix": "xchange_trading_v2",
     "database.include.list": "xchange_trading",
 
-    "table.include.list": "change_trading.T_DEAL,xchange_trading.T_DEAL_DECLINE_REASON,xchange_trading.T_DEAL_HISTORY,xchange_trading.T_DEAL_PROPOSAL,xchange_trading.T_DECLINE_REASON,xchange_trading.T_ABSTRACT_OFFER,xchange_trading.T_ABSTRACT_OFFER_ATTACHMENT",
+    "table.include.list": "xchange_trading.T_DEAL,xchange_trading.T_DEAL_DECLINE_REASON,xchange_trading.T_DEAL_HISTORY,xchange_trading.T_DEAL_PROPOSAL,xchange_trading.T_DECLINE_REASON,xchange_trading.T_ABSTRACT_OFFER_ATTACHMENT,xchange_trading.T_OFFER,xchange_trading.T_ABSTRACT_OFFER_ATTACHMENT,xchange_trading.T_ABSTRACT_OFFER",
 
-    "snapshot.mode": "recovery",
+    "snapshot.mode": "schema_only",
     "snapshot.locking.mode": "none",
     "snapshot.max.threads": "4",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
-    "schema.history.internal.kafka.topic": "xchange_trading.schema-history",
+    "schema.history.internal.kafka.topic": "xchange_trading_v2.schema-history",
     "schema.history.internal.store.only.captured.tables.ddl": "true",
     "schema.history.internal.skip.unparseable.ddl": "true",
     "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",
