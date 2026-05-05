@@ -10,7 +10,7 @@
     "database.password": "${PERFORMANCE_PASS}",
     "database.server.id": "${PERFORMANCE_SERVER_ID}",
 
-    "topic.prefix": "xchange_performance",
+    "topic.prefix": "xchange_performance_v2",
     "database.include.list": "xchange_company_performance",
 
     "table.include.list": "xchange_company_performance.T_COMPANY_PERFORMANCE_METRICS,xchange_company_performance.T_COMPANY_PERFORMANCE_METRICS_HISTORY",
@@ -20,7 +20,7 @@
     "snapshot.max.threads": "4",
 
     "schema.history.internal.kafka.bootstrap.servers": "${KAFKA_BOOTSTRAP_SERVERS}",
-    "schema.history.internal.kafka.topic": "xchange_performance.schema-history",
+    "schema.history.internal.kafka.topic": "xchange_performance_v2.schema-history",
     "schema.history.internal.store.only.captured.tables.ddl": "true",
     "schema.history.internal.skip.unparseable.ddl": "true",
     "schema.history.internal.producer.security.protocol": "${KAFKA_SECURITY_PROTOCOL}",

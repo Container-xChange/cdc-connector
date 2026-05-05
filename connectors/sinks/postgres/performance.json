@@ -8,7 +8,7 @@
     "connection.username": "${SINK_DB_USER}",
     "connection.password": "${SINK_DB_PASSWORD}",
 
-    "topics.regex": "xchange_performance\\.xchange_company_performance\\..*",
+    "topics.regex": "xchange_performance_v2\\.xchange_company_performance\\..*",
 
     "insert.mode": "upsert",
     "primary.key.mode": "record_key",
@@ -30,7 +30,7 @@
 
     "transforms": "route",
     "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
-    "transforms.route.regex": "xchange_performance\\.xchange_company_performance\\.(.*)",
+    "transforms.route.regex": "xchange_performance_v2\\.xchange_company_performance\\.(.*)",
     "transforms.route.replacement": "performance_$1"
   }
 }
