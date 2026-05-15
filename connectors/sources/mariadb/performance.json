@@ -15,7 +15,7 @@
 
     "table.include.list": "xchange_company_performance.T_COMPANY_PERFORMANCE_METRICS,xchange_company_performance.T_COMPANY_PERFORMANCE_METRICS_HISTORY",
 
-    "snapshot.mode": "schema_only",
+    "snapshot.mode": "when_needed",
     "snapshot.locking.mode": "none",
     "snapshot.max.threads": "4",
 
@@ -64,6 +64,17 @@
     "topic.creation.default.retention.ms": "15552000000",
     "topic.creation.default.delete.retention.ms": "86400000",
     "topic.creation.default.min.insync.replicas": "2",
+
+    "producer.override.compression.type": "lz4",
+    "producer.override.batch.size": "131072",
+    "producer.override.linger.ms": "100",
+    "producer.override.buffer.memory": "67108864",
+    "producer.override.max.in.flight.requests.per.connection": "5",
+    "producer.override.acks": "1",
+
+    "max.batch.size": "20480",
+    "max.queue.size": "81920",
+    "poll.interval.ms": "500",
 
     "key.converter": "org.apache.kafka.connect.json.JsonConverter",
     "key.converter.schemas.enable": "true",
