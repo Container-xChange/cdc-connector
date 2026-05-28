@@ -14,8 +14,9 @@
     "database.include.list": "xchange_company_performance",
 
     "table.include.list": "xchange_company_performance.T_COMPANY_PERFORMANCE_METRICS,xchange_company_performance.T_COMPANY_PERFORMANCE_METRICS_HISTORY",
+    "message.key.columns": "xchange_company_performance.T_COMPANY_PERFORMANCE_METRICS:company_id,metric_name,marketplace",
 
-    "snapshot.mode": "schema_only",
+    "snapshot.mode": "when_needed",
     "snapshot.locking.mode": "none",
     "snapshot.max.threads": "4",
 
