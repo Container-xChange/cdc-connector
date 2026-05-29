@@ -13,6 +13,7 @@ primary_region = 'fra'
   TZ = "UTC"
   ENABLE_JMX_EXPORTER = "true"
   OFFSET_FLUSH_TIMEOUT_MS = "60000"
+  KAFKA_HEAP_OPTS = "-Xms2G -Xmx5G"
 
 [http_service]
   internal_port = 8083
@@ -41,5 +42,5 @@ primary_region = 'fra'
   destination = "/data"
 
 [[vm]]
-  memory_mb = 4096
-  cpus = 2
+  memory_mb = 8192
+  cpus = 4
