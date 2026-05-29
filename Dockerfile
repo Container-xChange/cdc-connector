@@ -7,6 +7,12 @@ USER root
 # Debezium image is based on Red Hat UBI, use microdnf
 RUN microdnf install -y openvpn nmap-ncat iproute ca-certificates && microdnf clean all
 
+# JMX Prometheus exporter agent (loaded when ENABLE_JMX_EXPORTER=true)
+ARG JMX_EXPORTER_VERSION=0.20.0
+RUN curl -sSL -o /kafka/libs/jmx_prometheus_javaagent.jar \
+    https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/${JMX_EXPORTER_VERSION}/jmx_prometheus_javaagent-${JMX_EXPORTER_VERSION}.jar
+COPY metrics.yaml /kafka/config/metrics.yaml
+
 # Remove unnecessary connectors - keep only MySQL/MariaDB and JDBC (for Postgres sink)
 RUN rm -rf /kafka/connect/debezium-connector-mongodb \
     /kafka/connect/debezium-connector-oracle \
@@ -24,7 +30,6 @@ COPY entrypoint-prod.sh /entrypoint-prod.sh
 # Copy connector configurations
 COPY connectors/sources/mariadb/*.json /kafka/connectors/sources/mariadb/
 COPY connectors/sinks/postgres/*.json /kafka/connectors/sinks/postgres/
-COPY scripts/deploy /kafka/scripts/deploy
 
 # Update CA certificates to fix SSL verification
 RUN update-ca-trust
@@ -32,8 +37,7 @@ RUN update-ca-trust
 # Set permissions
 RUN chmod 600 /pass-prod.txt && \
     chmod 644 /kafka/profile-286.ovpn && \
-    chmod +x /entrypoint-prod.sh && \
-    chmod +x /kafka/scripts/deploy/deploy-connectors.sh
+    chmod +x /entrypoint-prod.sh
 
 # Stay as root (OpenVPN requires root privileges)
 # The original Debezium entrypoint will handle user switching if needed
