@@ -47,7 +47,7 @@
 
     "tombstones.on.delete": "true",
 
-    "binlog.buffer.size": "8192",
+    "binlog.buffer.size": "0",
 
     "database.connectionTimeZone": "UTC",
 
