@@ -22,7 +22,10 @@
 	unregister-performance-source unregister-performance-sink \
 	unregister-concontrol-source unregister-concontrol-sink \
 	unregister-claim-source unregister-claim-sink \
-	unregister-payment-source unregister-payment-sink
+	unregister-payment-source unregister-payment-sink \
+	register-delinquency-source register-delinquency-sink \
+	restart-delinquency-source restart-delinquency-sink \
+	unregister-delinquency-source unregister-delinquency-sink
 
 SHELL := /bin/bash
 
@@ -51,7 +54,7 @@ help:
 	@echo "  make unregister-<database>-sink   - Delete sink connector"
 	@echo "  make unregister-all               - Delete ALL source and sink connectors"
 	@echo ""
-	@echo "Available databases: trading, finance, live, chat, performance, concontrol, claim, payment"
+	@echo "Available databases: trading, finance, live, chat, performance, concontrol, claim, payment, delinquency"
 	@echo ""
 	@echo "Status:"
 	@echo "  make connectors                   - List all connectors and their status"
@@ -400,6 +403,49 @@ unregister-payment-sink:
 	@echo "Deleting Payment sink connector..."
 	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-payment 2>/dev/null || true
 	@echo "✓ Payment sink deleted"
+
+# Delinquency
+register-delinquency-source:
+	@echo "Registering Delinquency source connector..."
+	@envsubst < connectors/sources/mariadb/delinquency.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo "✓ Delinquency source registered"
+
+register-delinquency-sink:
+	@echo "Registering Delinquency sink connector..."
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/delinquency.json | \
+	curl -X POST $$DEBEZIUM_URL/connectors \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo "✓ Delinquency sink registered"
+
+restart-delinquency-source:
+	@echo "Restarting Delinquency source connector..."
+	@envsubst < connectors/sources/mariadb/delinquency.json | jq '.config' | \
+	curl -X PUT $$DEBEZIUM_URL/connectors/mariadb-delinquency-connector/config \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo "✓ Delinquency source config updated"
+
+restart-delinquency-sink:
+	@echo "Restarting Delinquency sink connector..."
+	@envsubst '$${SINK_DB_URL} $${SINK_DB_USER} $${SINK_DB_PASSWORD} $${KAFKA_SECURITY_PROTOCOL} $${KAFKA_SASL_MECHANISM} $${CONFLUENT_API_KEY} $${CONFLUENT_API_SECRET}' < connectors/sinks/postgres/delinquency.json | jq '.config' | \
+	curl -X PUT $$DEBEZIUM_URL/connectors/postgres-sink-delinquency/config \
+		-H "Content-Type: application/json" \
+		-d @- | jq .
+	@echo "✓ Delinquency sink config updated"
+
+unregister-delinquency-source:
+	@echo "Deleting Delinquency source connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/mariadb-delinquency-connector 2>/dev/null || true
+	@echo "✓ Delinquency source deleted"
+
+unregister-delinquency-sink:
+	@echo "Deleting Delinquency sink connector..."
+	@curl -s -X DELETE $$DEBEZIUM_URL/connectors/postgres-sink-delinquency 2>/dev/null || true
+	@echo "✓ Delinquency sink deleted"
 
 # Status
 connectors:

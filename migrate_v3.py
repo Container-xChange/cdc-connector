@@ -141,6 +141,17 @@ DATABASES = {
         },
         'schema': 'mp_cdc',
         'prefix': 'payment_'
+    },
+    'delinquency': {
+      'mysql': {
+        'host': 'DELINQUENCY_HOST',
+        'port': 'DELINQUENCY_PORT',
+        'user': 'DELINQUENCY_USER',
+        'password': 'DELINQUENCY_PASS',
+        'database': 'DELINQUENCY_DB'
+      },
+      'schema': 'mp_cdc',
+      'prefix': 'delinquency_'
     }
 }
 
@@ -971,7 +982,7 @@ Examples:
         '--database',
         type=str,
         required=True,
-        choices=['trading', 'finance', 'live', 'chat', 'performance', 'concontrol', 'claim', 'payment'],
+        choices=['trading', 'finance', 'live', 'chat', 'performance', 'concontrol', 'claim', 'payment', 'delinquency'],
         help='Database to migrate'
     )
 
